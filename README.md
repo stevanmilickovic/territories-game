@@ -44,6 +44,10 @@ PostgreSQL stores faction data, current territory ownership, finalized battle re
 
 The initial deployment targets a single VPS with Docker Compose. Redis is reserved for coordinating rooms across processes or hosts if needed. Google AdSense or H5 Games Ads may be considered once the core game is playable, subject to approval.
 
+## Development workflow
+
+See [Codex skills](docs/codex-skills.md) for the project’s shared agent tooling.
+
 ## Project status
 
-The game is in the design stage. The repository currently contains this overview.
+The game is in the design stage. The repository contains project documentation and development skills.
