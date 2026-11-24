@@ -52,6 +52,8 @@ Pixel art is the default for game art, including sprites, terrain, and faction f
 
 See [Codex skills](docs/codex-skills.md) for the project’s shared agent tooling.
 
+The [v0.1 plan](docs/versions/v0.1.md) outlines the path to the first playable local version.
+
 ## Project status
 
 The game is in the design stage. The repository contains project documentation and development skills.
