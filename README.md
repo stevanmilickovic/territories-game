@@ -44,6 +44,10 @@ PostgreSQL stores faction data, current territory ownership, finalized battle re
 
 The initial deployment targets a single VPS with Docker Compose. Redis is reserved for coordinating rooms across processes or hosts if needed. Google AdSense or H5 Games Ads may be considered once the core game is playable, subject to approval.
 
+## Visual direction
+
+Pixel art is the default for game art, including sprites, terrain, and faction flags. Other styles can be used where they fit the design.
+
 ## Development workflow
 
 See [Codex skills](docs/codex-skills.md) for the project’s shared agent tooling.
