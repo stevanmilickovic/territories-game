@@ -1,0 +1,8 @@
+{
+  "name": "territories-game",
+  "private": true,
+  "workspaces": ["client", "server", "shared"],
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

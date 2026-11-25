@@ -1,0 +1,5 @@
+{
+  "name": "@territories-game/client",
+  "private": true,
+  "type": "module"
+}

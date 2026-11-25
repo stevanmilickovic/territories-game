@@ -1,0 +1,5 @@
+{
+  "name": "@territories-game/server",
+  "private": true,
+  "type": "module"
+}

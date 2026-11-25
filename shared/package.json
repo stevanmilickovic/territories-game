@@ -1,0 +1,5 @@
+{
+  "name": "@territories-game/shared",
+  "private": true,
+  "type": "module"
+}
