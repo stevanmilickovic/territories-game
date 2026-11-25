@@ -37,7 +37,7 @@ Territories Game is a planned browser multiplayer game where players form factio
 The planned monorepo has three workspaces.
 
 - **`client/`** contains the React world map, faction tools, and history book, plus the Phaser battle client.
-- **`server/`** hosts the Express API and Colyseus battle rooms in one Node.js service. The server runs the authoritative battle simulation.
+- **`server/`** hosts a Colyseus world room and a separate room for each battle in one Node.js service. The server runs the authoritative battle simulation and serves Express routes as HTTP endpoints are needed.
 - **`shared/`** contains TypeScript types and protocol contracts used by both sides.
 
 PostgreSQL stores faction data, current territory ownership, finalized battle results, and daily map snapshots. Each active battle runs in its own Colyseus room with simulation state in memory. Finalizing a battle records its result and applies any ownership change in one transaction that can be safely retried.
