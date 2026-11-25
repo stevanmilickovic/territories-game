@@ -1,0 +1,68 @@
+:root {
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+  color: #e8eddf;
+  background: #172627;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 76rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+header { border-bottom: 1px solid #53655b; padding-bottom: 1rem; }
+h1, h2 { font-family: Georgia, serif; font-weight: normal; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+h2 { font-size: 1.5rem; margin-bottom: 0.85rem; }
+p { margin: 0.45rem 0 0; }
+header p, .map-caption, .faction-list > p { color: #b7c7b9; }
+
+.world {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+  gap: clamp(1rem, 4vw, 3rem);
+  margin-top: 1.5rem;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #617d75;
+  background: #163f49;
+}
+
+.map polygon {
+  fill: #acb58a;
+  stroke: #314e3e;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.map text {
+  fill: #172c24;
+  font: bold 28px Georgia, serif;
+}
+
+fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+label { display: grid; gap: 0.35rem; }
+input, button {
+  min-height: 2.75rem;
+  font: inherit;
+  border: 1px solid #798b7e;
+  border-radius: 0.2rem;
+}
+input { padding: 0.45rem 0.6rem; background: #253635; color: inherit; width: 100%; }
+input[type="color"] { width: 4rem; padding: 0.25rem; }
+button { background: #b8cd9d; color: #172c24; padding: 0.5rem 1rem; font-weight: bold; }
+button:enabled { cursor: pointer; }
+button:disabled { opacity: 0.65; }
+:focus-visible { outline: 2px solid #e1c58f; outline-offset: 3px; }
+[role="alert"] { color: #ffc5b0; }
+
+.faction-list { margin-top: 1.5rem; border-top: 1px solid #53655b; padding-top: 0.65rem; }
+.faction-list ul { margin: 0; padding: 0; list-style: none; }
+.faction-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; overflow-wrap: anywhere; }
+.swatch { width: 1rem; height: 1rem; flex: 0 0 auto; border: 1px solid #a0ae9a; }
+
+@media (max-width: 45rem) {
+  .world { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { defineRoom, defineServer, Room, type Client } from "colyseus";
+import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 
 type GuestClient = Client<{ userData: { guestName: string } }>;
-type Faction = { id: string; name: string; color: string };
-type CreateFactionResult = { ok: true; faction: Faction } | { ok: false; error: string };
 
 class WorldRoom extends Room {
   autoDispose = false;
@@ -32,6 +31,7 @@ class WorldRoom extends Room {
 
       const faction = { id: randomUUID(), name, color: color.toLowerCase() };
       this.factionsByFounder.set(client.sessionId, faction);
+      this.broadcast("factions", [...this.factionsByFounder.values()]);
       return { ok: true, faction };
     },
   };
@@ -40,6 +40,7 @@ class WorldRoom extends Room {
     const guestName = `Guest ${this.nextGuestNumber++}`;
     client.userData = { guestName };
     client.send("guestName", guestName);
+    client.send("factions", [...this.factionsByFounder.values()]);
   }
 }
 
