@@ -2,7 +2,11 @@
   "name": "territories-game",
   "private": true,
   "workspaces": ["client", "server", "shared"],
+  "scripts": {
+    "dev": "concurrently --kill-others --names server,client \"npm run dev -w server\" \"npm run dev -w client\""
+  },
   "devDependencies": {
+    "concurrently": "^10.0.7",
     "typescript": "^6.0.3"
   }
 }

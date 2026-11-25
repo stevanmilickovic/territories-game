@@ -50,7 +50,7 @@ Pixel art is the default for game art, including sprites, terrain, and faction f
 
 ## Development workflow
 
-Use Node.js 22.18 or later and run `npm ci` from the repository root. Start the server with `npm run dev -w server` and the client with `npm run dev -w client` in separate terminals. Open the local URL printed by Vite to join the world room.
+Use Node.js 22.18 or later. Run `npm ci` and then `npm run dev` from the repository root to start both the server and client. Open the local URL printed by Vite to join the world room.
 
 See [Codex skills](docs/codex-skills.md) for the project’s shared agent tooling.
 
