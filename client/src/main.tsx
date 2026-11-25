@@ -14,7 +14,9 @@ function App() {
     void connection.then(
       (room) => {
         if (!active) return;
-        setStatus("Connected to the world.");
+        room.onMessage("guestName", (guestName: string) => {
+          if (active) setStatus(`Connected to the world as ${guestName}.`);
+        });
         room.onLeave(() => {
           if (active) setStatus("Disconnected. Reload to rejoin.");
         });
