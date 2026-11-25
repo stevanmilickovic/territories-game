@@ -1,5 +1,15 @@
 {
   "name": "@territories-game/server",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "colyseus": "^0.18.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.7"
+  }
 }
