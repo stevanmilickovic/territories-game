@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { defineRoom, defineServer, Room, type Client } from "colyseus";
-import type { StartChallengeResult, TerritoryChallenge } from "../../shared/src/challenges.ts";
+import type {
+  ArenaEntryResult,
+  StartChallengeResult,
+  TerritoryActivity,
+  TerritoryChallenge,
+} from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
 import { canAttackTerritory } from "./attack-eligibility.ts";
@@ -46,7 +51,22 @@ class WorldRoom extends Room {
       };
       challenges.set(faction.id, challenge);
       this.challengesByTerritory.set(territory.id, challenges);
+      this.broadcast("territoryActivity", this.getTerritoryActivity());
       return { ok: true, challenge };
+    },
+
+    checkArenaEntry: (client: GuestClient, territoryId: unknown): ArenaEntryResult => {
+      const faction = this.factionsByFounder.get(client.sessionId);
+      if (!faction) return { ok: false, error: "Found a faction before entering an arena." };
+      if (typeof territoryId !== "string" || !this.ownership.has(territoryId)) {
+        return { ok: false, error: "Choose a valid territory." };
+      }
+      if (this.ownership.get(territoryId) === faction.id) return { ok: true };
+
+      const challenge = this.challengesByTerritory.get(territoryId)?.get(faction.id);
+      if (!challenge) return { ok: false, error: "Declare a challenge before entering." };
+      if (Date.now() < challenge.readyAt) return { ok: false, error: "Your faction is still gathering." };
+      return { ok: true };
     },
 
     createFaction: (client: GuestClient, payload: unknown): CreateFactionResult => {
@@ -75,11 +95,22 @@ class WorldRoom extends Room {
     },
   };
 
+  private getTerritoryActivity(): TerritoryActivity {
+    return {
+      serverTime: Date.now(),
+      owners: Object.fromEntries(this.ownership),
+      challenges: Array.from(this.challengesByTerritory.values()).flatMap(
+        (challenges) => [...challenges.values()],
+      ),
+    };
+  }
+
   onJoin(client: GuestClient) {
     const guestName = `Guest ${this.nextGuestNumber++}`;
     client.userData = { guestName };
     client.send("guestName", guestName);
     client.send("factions", [...this.factionsByFounder.values()]);
+    client.send("territoryActivity", this.getTerritoryActivity());
   }
 }
 
