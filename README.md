@@ -54,7 +54,7 @@ Use Node.js 22.18 or later. Run `npm ci` from the repository root, then launch b
 
 See [Codex skills](docs/codex-skills.md) for the project’s shared agent tooling.
 
-The [v0.1 plan](docs/versions/v0.1.md) outlines the path to the first playable local version.
+The [v0.1 plan](docs/versions/v0.1.md) covers the first playable local version. The [v0.2 plan](docs/versions/v0.2.md) covers the generated world map, player entry, and larger arena.
 
 ## Project status
 
