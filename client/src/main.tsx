@@ -1,6 +1,7 @@
 import { Client, type Room } from "@colyseus/sdk";
 import { useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
+import type { StartChallengeResult } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
 import "./world.css";
@@ -14,6 +15,7 @@ function App() {
   const [founded, setFounded] = useState<Faction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [challengeNotice, setChallengeNotice] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -67,6 +69,32 @@ function App() {
     }
   }
 
+  async function startChallenge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!room || !founded || isSubmitting) return;
+
+    const territoryId = new FormData(event.currentTarget).get("territory");
+    const territory = worldMap.territories.find(({ id }) => id === territoryId);
+    if (!territory) return;
+
+    setIsSubmitting(true);
+    setError("");
+    setChallengeNotice("");
+    try {
+      const result: StartChallengeResult = await room.request("startChallenge", territory.id);
+      if (result.ok) {
+        const deadline = new Date(result.challenge.closesAt).toLocaleTimeString();
+        setChallengeNotice(`Challenge opened for ${territory.name}. Gathering deadline ${deadline}.`);
+      } else {
+        setError(result.error);
+      }
+    } catch {
+      setError("Could not confirm the challenge. Try again if you’re still connected.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main>
       <header>
@@ -94,7 +122,24 @@ function App() {
         <aside aria-labelledby="factions-heading">
           <h2 id="factions-heading">Factions</h2>
           {founded ? (
-            <p role="status">You founded <strong>{founded.name}</strong>.</p>
+            <>
+              <p role="status">You founded <strong>{founded.name}</strong>.</p>
+              <form onSubmit={startChallenge}>
+                <fieldset disabled={!room || isSubmitting}>
+                  <label>
+                    Territory
+                    <select name="territory" required defaultValue="">
+                      <option value="" disabled>Choose a territory</option>
+                      {worldMap.territories.map(({ id, name }) => (
+                        <option key={id} value={id}>{name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit">{isSubmitting ? "Opening…" : "Start challenge"}</button>
+                </fieldset>
+                <p role="status">{challengeNotice}</p>
+              </form>
+            </>
           ) : (
             <form onSubmit={createFaction}>
               <fieldset disabled={!room || isSubmitting}>
@@ -108,9 +153,9 @@ function App() {
                 </label>
                 <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
               </fieldset>
-              {error && <p role="alert">{error}</p>}
             </form>
           )}
+          {error && <p role="alert">{error}</p>}
           <div className="faction-list" aria-live="polite">
             {factions.length === 0 ? <p>No factions yet.</p> : (
               <ul aria-label="Founded factions">
