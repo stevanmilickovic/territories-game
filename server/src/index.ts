@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { defineRoom, defineServer, Room, type Client } from "colyseus";
+import { defineRoom, defineServer, matchMaker, Room, type Client } from "colyseus";
 import type {
   ArenaEntryResult,
   StartChallengeResult,
@@ -9,8 +9,10 @@ import type {
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
 import { canAttackTerritory } from "./attack-eligibility.ts";
+import { TerritoryArena } from "./territory-arena.ts";
 
 type GuestClient = Client<{ userData: { guestName: string } }>;
+type ArenaReservation = Awaited<ReturnType<typeof matchMaker.reserveSeatFor>>;
 const gatheringWindowMs = 30_000;
 
 class WorldRoom extends Room {
@@ -21,6 +23,7 @@ class WorldRoom extends Room {
     worldMap.territories.map(({ id, ownerFactionId }) => [id, ownerFactionId]),
   );
   private readonly challengesByTerritory = new Map<string, Map<string, TerritoryChallenge>>();
+  private readonly arenasByTerritory = new Map<string, ReturnType<typeof matchMaker.createRoom>>();
 
   messages = {
     startChallenge: (client: GuestClient, territoryId: unknown): StartChallengeResult => {
@@ -55,18 +58,29 @@ class WorldRoom extends Room {
       return { ok: true, challenge };
     },
 
-    checkArenaEntry: (client: GuestClient, territoryId: unknown): ArenaEntryResult => {
+    enterArena: async (client: GuestClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
       const faction = this.factionsByFounder.get(client.sessionId);
       if (!faction) return { ok: false, error: "Found a faction before entering an arena." };
       if (typeof territoryId !== "string" || !this.ownership.has(territoryId)) {
         return { ok: false, error: "Choose a valid territory." };
       }
-      if (this.ownership.get(territoryId) === faction.id) return { ok: true };
+      if (this.ownership.get(territoryId) !== faction.id) {
+        const challenge = this.challengesByTerritory.get(territoryId)?.get(faction.id);
+        if (!challenge) return { ok: false, error: "Declare a challenge before entering." };
+        if (Date.now() < challenge.readyAt) return { ok: false, error: "Your faction is still gathering." };
+      }
 
-      const challenge = this.challengesByTerritory.get(territoryId)?.get(faction.id);
-      if (!challenge) return { ok: false, error: "Declare a challenge before entering." };
-      if (Date.now() < challenge.readyAt) return { ok: false, error: "Your faction is still gathering." };
-      return { ok: true };
+      let arena = this.arenasByTerritory.get(territoryId);
+      if (!arena) {
+        arena = matchMaker.createRoom("territoryArena", { territoryId }).catch((error: unknown) => {
+          this.arenasByTerritory.delete(territoryId);
+          throw error;
+        });
+        this.arenasByTerritory.set(territoryId, arena);
+      }
+
+      const reservation = await matchMaker.reserveSeatFor(await arena, {}, { factionId: faction.id });
+      return { ok: true, reservation };
     },
 
     createFaction: (client: GuestClient, payload: unknown): CreateFactionResult => {
@@ -117,6 +131,7 @@ class WorldRoom extends Room {
 const server = defineServer({
   rooms: {
     world: defineRoom(WorldRoom),
+    territoryArena: defineRoom(TerritoryArena),
   },
 });
 

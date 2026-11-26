@@ -1,4 +1,4 @@
-import { Client, type Room } from "@colyseus/sdk";
+import { Client, type Room, type SeatReservation } from "@colyseus/sdk";
 import { useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
@@ -15,7 +15,7 @@ function App() {
   const [founded, setFounded] = useState<Faction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [entryNotice, setEntryNotice] = useState("");
+  const [arena, setArena] = useState<{ room: Room; territoryName: string } | null>(null);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
   const [now, setNow] = useState(Date.now);
@@ -65,6 +65,13 @@ function App() {
     return () => window.clearInterval(interval);
   }, [room]);
 
+  useEffect(() => {
+    if (!arena) return;
+    return () => {
+      void arena.room.leave().catch(() => {});
+    };
+  }, [arena]);
+
   const serverNow = now + clockOffset;
   const ownChallenge = activity?.challenges.find(
     (challenge) => challenge.territoryId === territoryId && challenge.challengerFactionId === founded?.id,
@@ -100,12 +107,17 @@ function App() {
 
     setIsSubmitting(true);
     setError("");
-    setEntryNotice("");
     try {
       if (canEnter) {
-        const result: ArenaEntryResult = await room.request("checkArenaEntry", territoryId);
-        if (result.ok) setEntryNotice("Your faction is cleared to enter. Arena travel is coming in the next step.");
-        else setError(result.error);
+        const result: ArenaEntryResult<SeatReservation> = await room.request("enterArena", territoryId);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        const arenaRoom = await client.consumeSeatReservation(result.reservation);
+        arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
+        const territoryName = worldMap.territories.find(({ id }) => id === territoryId)?.name ?? territoryId;
+        setArena({ room: arenaRoom, territoryName });
       } else {
         const result: StartChallengeResult = await room.request("startChallenge", territoryId);
         if (!result.ok) setError(result.error);
@@ -115,6 +127,18 @@ function App() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (arena) {
+    return (
+      <main>
+        <header>
+          <h1>{arena.territoryName} arena</h1>
+          <p role="status">You joined as {founded?.name}.</p>
+        </header>
+        <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
+      </main>
+    );
   }
 
   return (
@@ -177,7 +201,6 @@ function App() {
                     Territory
                     <select name="territory" required value={territoryId} onChange={(event) => {
                       setTerritoryId(event.target.value);
-                      setEntryNotice("");
                       setError("");
                     }}>
                       <option value="" disabled>Choose a territory</option>
@@ -190,7 +213,6 @@ function App() {
                     {isGathering ? "Gathering…" : canEnter ? "Enter arena" : "Start challenge"}
                   </button>
                 </fieldset>
-                {entryNotice && <p role="status">{entryNotice}</p>}
               </form>
             </>
           ) : (
