@@ -3,6 +3,8 @@ export const arenaTickRate = 30;
 export const arenaPlayerRadius = 9;
 export const arenaMaxHealth = 100;
 export const arenaRespawnDelayMs = 5000;
+export const arenaCaptureRadius = 24;
+export const arenaCaptureTicks = 3 * arenaTickRate;
 export const arenaWeapon = {
   name: "AK-47",
   damage: 25,

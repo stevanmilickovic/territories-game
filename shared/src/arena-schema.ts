@@ -13,6 +13,10 @@ export const ArenaPlayer = schema({
 
 export const ArenaState = schema({
   players: t.map(ArenaPlayer),
+  ownerFactionId: t.string(),
+  captureFactionId: t.string(),
+  captureTicks: t.uint16(),
+  captureContested: t.boolean(),
 }, "ArenaState");
 export type ArenaState = SchemaType<typeof ArenaState>;
 

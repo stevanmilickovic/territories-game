@@ -141,7 +141,7 @@ function App() {
         <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
         <p>Move with WASD. Aim with the mouse. Hold left click to fire.</p>
         <Suspense fallback={<p role="status">Loading arena…</p>}>
-          <ArenaView room={arena.room} />
+          <ArenaView room={arena.room} factions={factions} />
         </Suspense>
       </main>
     );

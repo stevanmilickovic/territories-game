@@ -1,11 +1,12 @@
 import { Room, type Client } from "colyseus";
 import {
-  arenaLayout, arenaMaxHealth, arenaPlayerRadius, arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
+  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPlayerRadius,
+  arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena.ts";
 import { ArenaInput, ArenaPlayer, ArenaState } from "../../shared/src/arena-schema.ts";
 
-type ArenaMember = { guestSessionId: string; factionId: string; color: string; isOwner: boolean };
+type ArenaMember = { guestSessionId: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
 
 const { width, height, edgeInset } = arenaLayout;
@@ -42,15 +43,54 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   private readonly nextShotTick = new Map<string, number>();
   private readonly pendingRespawns = new Map<string, number>();
   private nextLife = 1;
+  onTerritoryCaptured?: (factionId: string) => void;
 
   static override async onAuth() {
     // Arena seats are issued by the world room after checking faction eligibility.
     return false;
   }
 
-  async onCreate() {
+  async onCreate({ ownerFactionId = null }: { ownerFactionId?: string | null }) {
+    this.state.ownerFactionId = ownerFactionId ?? "";
     await this.setPrivate();
-    this.setFixedTimestep(({ dt, tick }) => this.stepPlayers(dt, tick), arenaTickRate);
+    this.setFixedTimestep(({ dt, tick }) => {
+      this.stepPlayers(dt, tick);
+      this.stepCapture();
+    }, arenaTickRate);
+  }
+
+  private stepCapture() {
+    const state = this.state;
+    let holdingFactionId = "";
+    for (const player of state.players.values()) {
+      if (player.health === 0) continue;
+      const dx = player.x - centerSpawn.x;
+      const dy = player.y - centerSpawn.y;
+      if (dx * dx + dy * dy > arenaCaptureRadius ** 2) continue;
+      if (holdingFactionId && holdingFactionId !== player.factionId) {
+        state.captureContested = true;
+        return;
+      }
+      holdingFactionId = player.factionId;
+    }
+
+    state.captureContested = false;
+    if (!holdingFactionId || holdingFactionId === state.ownerFactionId) {
+      state.captureFactionId = "";
+      state.captureTicks = 0;
+      return;
+    }
+    if (state.captureFactionId !== holdingFactionId) {
+      state.captureFactionId = holdingFactionId;
+      state.captureTicks = 0;
+    }
+    state.captureTicks++;
+    if (state.captureTicks < arenaCaptureTicks) return;
+
+    this.onTerritoryCaptured?.(holdingFactionId);
+    state.ownerFactionId = holdingFactionId;
+    state.captureFactionId = "";
+    state.captureTicks = 0;
   }
 
   private stepPlayers(dt: number, tick: number) {
@@ -120,8 +160,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     this.broadcast("arenaShot", shot);
   }
 
-  private getSpawn({ factionId, isOwner }: ArenaMember): ArenaPoint {
-    if (isOwner) return centerSpawn;
+  private getSpawn({ factionId }: ArenaMember): ArenaPoint {
+    if (this.state.ownerFactionId === factionId) return centerSpawn;
     const spawn = this.edgeSpawns.get(factionId) ?? edgeSpawn(this.edgeSpawns.size);
     this.edgeSpawns.set(factionId, spawn);
     return spawn;

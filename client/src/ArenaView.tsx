@@ -3,9 +3,11 @@ import Phaser from "phaser";
 import { useEffect, useRef } from "react";
 import { ArenaInput, type ArenaState } from "../../shared/src/arena-schema";
 import {
-  arenaLayout, arenaMaxHealth, arenaPlayerRadius, arenaWeapon, stepArenaMovement,
+  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPlayerRadius,
+  arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena";
+import type { Faction } from "../../shared/src/factions.ts";
 
 const { width, height } = arenaLayout;
 const playerInterpolation = {
@@ -14,8 +16,16 @@ const playerInterpolation = {
   aim: { mode: "lerp", angle: true },
 } as const;
 
-export default function ArenaView({ room }: { room: Room<unknown, ArenaState> }) {
+export default function ArenaView({ room, factions }: {
+  room: Room<unknown, ArenaState>;
+  factions: readonly Faction[];
+}) {
   const host = useRef<HTMLDivElement>(null);
+  const currentFactions = useRef(factions);
+
+  useEffect(() => {
+    currentFactions.current = factions;
+  }, [factions]);
 
   useEffect(() => {
     const parent = host.current;
@@ -27,6 +37,8 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
     class ArenaScene extends Phaser.Scene {
       private markers!: Phaser.GameObjects.Graphics;
       private hud!: Phaser.GameObjects.Text;
+      private captureLabel!: Phaser.GameObjects.Text;
+      private captureBar!: Phaser.GameObjects.Rectangle;
       private keys?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
       private trackingPlayers = false;
       private resetLocalPrediction?: () => void;
@@ -41,9 +53,13 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
         floor.lineStyle(1, 0x41584d);
         for (let x = 32; x < width; x += 32) floor.lineBetween(x, 0, x, height);
         for (let y = 32; y < height; y += 32) floor.lineBetween(0, y, width, y);
-        floor.lineStyle(2, 0xaabc95).strokeCircle(width / 2, height / 2, 24);
+        floor.lineStyle(2, 0xaabc95).strokeCircle(width / 2, height / 2, arenaCaptureRadius);
         this.markers = this.add.graphics();
-        this.hud = this.add.text(12, 12, "", { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" });
+        const hudStyle = { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" };
+        this.hud = this.add.text(12, 12, "", hudStyle);
+        this.captureLabel = this.add.text(width - 12, 12, "", hudStyle).setOrigin(1, 0);
+        this.add.rectangle(width - 172, 38, 160, 6, 0x41584d).setOrigin(0, 0);
+        this.captureBar = this.add.rectangle(width - 172, 38, 160, 6, 0xaabc95).setOrigin(0, 0);
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (!pointer.leftButtonDown()) return;
           this.firePressed = true;
@@ -72,10 +88,29 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
         }
       }
 
+      private renderCapture() {
+        const { captureFactionId, captureTicks, captureContested, ownerFactionId } = room.state;
+        const faction = currentFactions.current.find(({ id }) => id === captureFactionId);
+        const name = faction?.name ?? "A faction";
+        if (captureContested) {
+          this.captureLabel.setText("Center contested");
+        } else if (captureFactionId) {
+          this.captureLabel.setText(`${name} is capturing`);
+        } else if (ownerFactionId) {
+          const owner = currentFactions.current.find(({ id }) => id === ownerFactionId);
+          this.captureLabel.setText(owner ? `Held by ${owner.name}` : "Center captured");
+        } else {
+          this.captureLabel.setText("Capture point");
+        }
+        this.captureBar.setScale(captureTicks / arenaCaptureTicks, 1);
+        this.captureBar.setFillStyle(faction ? Phaser.Display.Color.HexStringToColor(faction.color).color : 0xaabc95);
+      }
+
       update() {
         const players = room.state?.players;
         const localPlayer = players?.get(room.sessionId);
         if (!players || !localPlayer) return;
+        this.renderCapture();
         if (!this.trackingPlayers) {
           predict.attachAll("players", playerInterpolation);
           const reconciler = predict.reconciler(localPlayer, {

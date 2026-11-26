@@ -13,7 +13,7 @@ import { TerritoryArena } from "./territory-arena.ts";
 
 type GuestClient = Client<{ userData: { guestName: string } }>;
 type ArenaReservation = Awaited<ReturnType<typeof matchMaker.reserveSeatFor>>;
-const gatheringWindowMs = 30_000;
+const gatheringWindowMs = 0; // Skip the gathering delay during local playtesting.
 
 class WorldRoom extends Room {
   autoDispose = false;
@@ -72,7 +72,15 @@ class WorldRoom extends Room {
 
       let arena = this.arenasByTerritory.get(territoryId);
       if (!arena) {
-        arena = matchMaker.createRoom("territoryArena", { territoryId }).catch((error: unknown) => {
+        arena = matchMaker.createRoom("territoryArena", {
+          territoryId,
+          ownerFactionId: this.ownership.get(territoryId),
+        }).then((listing) => {
+          const room = matchMaker.getLocalRoomById(listing.roomId);
+          if (!(room instanceof TerritoryArena)) throw new Error("Territory arena must be local.");
+          room.onTerritoryCaptured = (factionId) => this.applyCapture(territoryId, factionId);
+          return listing;
+        }).catch((error: unknown) => {
           this.arenasByTerritory.delete(territoryId);
           throw error;
         });
@@ -83,7 +91,6 @@ class WorldRoom extends Room {
         guestSessionId: client.sessionId,
         factionId: faction.id,
         color: faction.color,
-        isOwner: this.ownership.get(territoryId) === faction.id,
       });
       return { ok: true, reservation };
     },
@@ -113,6 +120,26 @@ class WorldRoom extends Room {
       return { ok: true, faction };
     },
   };
+
+  private applyCapture(territoryId: string, factionId: string) {
+    const formerOwner = this.ownership.get(territoryId);
+    if (formerOwner === factionId) return;
+
+    const challenges = this.challengesByTerritory.get(territoryId)
+      ?? new Map<string, TerritoryChallenge>();
+    challenges.delete(factionId);
+    if (formerOwner) {
+      // The former defender can keep contesting the arena after losing ownership.
+      challenges.set(formerOwner, {
+        territoryId,
+        challengerFactionId: formerOwner,
+        readyAt: Date.now(),
+      });
+    }
+    this.challengesByTerritory.set(territoryId, challenges);
+    this.ownership.set(territoryId, factionId);
+    this.broadcast("territoryActivity", this.getTerritoryActivity());
+  }
 
   private getTerritoryActivity(): TerritoryActivity {
     return {
