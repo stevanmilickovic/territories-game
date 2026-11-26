@@ -1,5 +1,8 @@
 {
   "name": "@territories-game/shared",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@colyseus/schema": "^5.0.52"
+  }
 }

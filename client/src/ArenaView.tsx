@@ -1,30 +1,24 @@
-import type { Room } from "@colyseus/sdk";
+import { Predict, type Room } from "@colyseus/sdk";
 import Phaser from "phaser";
 import { useEffect, useRef } from "react";
-import { arenaLayout, arenaPlayerRadius, arenaTickRate, type ArenaInput, type ArenaPlayer } from "../../shared/src/arena";
+import { ArenaInput, type ArenaState } from "../../shared/src/arena-schema";
+import { arenaLayout, arenaPlayerRadius, stepArenaMovement } from "../../shared/src/arena";
 
 const { width, height } = arenaLayout;
 
-export default function ArenaView({ players, room }: {
-  players: readonly ArenaPlayer[];
-  room: Room;
-}) {
+export default function ArenaView({ room }: { room: Room<unknown, ArenaState> }) {
   const host = useRef<HTMLDivElement>(null);
-  const latestPlayers = useRef(players);
-
-  useEffect(() => {
-    latestPlayers.current = players;
-  }, [players]);
 
   useEffect(() => {
     const parent = host.current;
     if (!parent) return;
+    const predict = Predict.get(room, { mode: "lerp", delay: 100 });
+    const input = room.input({ type: ArenaInput });
 
     class ArenaScene extends Phaser.Scene {
       private markers!: Phaser.GameObjects.Graphics;
-      private drawnPlayers: readonly ArenaPlayer[] | undefined;
       private keys?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
-      private nextInputAt = 0;
+      private trackingPlayers = false;
 
       create() {
         const floor = this.add.graphics();
@@ -44,32 +38,51 @@ export default function ArenaView({ players, room }: {
         }
       }
 
-      update(time: number) {
-        if (this.keys && time >= this.nextInputAt) {
-          this.nextInputAt = time + 1000 / arenaTickRate;
-          const pointer = this.input.activePointer.updateWorldPoint(this.cameras.main);
-          const input: ArenaInput = {
-            moveX: Number(this.keys.right.isDown) - Number(this.keys.left.isDown),
-            moveY: Number(this.keys.down.isDown) - Number(this.keys.up.isDown),
-            aimX: pointer.worldX,
-            aimY: pointer.worldY,
-          };
-          room.send("arenaInput", input);
+      update() {
+        const players = room.state?.players;
+        if (!this.trackingPlayers) {
+          const localPlayer = players?.get(room.sessionId);
+          if (!localPlayer) return;
+
+          predict.attachAll("players", {
+            x: "lerp",
+            y: "lerp",
+            aim: { mode: "lerp", angle: true },
+          });
+          predict.reconciler(localPlayer, {
+            input,
+            fields: ["x", "y", "aim"],
+            smoothMs: 65,
+            step: ({ dt }, player, command) => {
+              Object.assign(player, stepArenaMovement(player, command, dt));
+            },
+          });
+          this.trackingPlayers = true;
+        }
+        if (!players) return;
+
+        const steps = predict.tick(performance.now());
+        const pointer = this.input.activePointer.updateWorldPoint(this.cameras.main);
+        for (let step = 0; step < steps; step++) {
+          input.data.moveX = Number(Boolean(this.keys?.right.isDown)) - Number(Boolean(this.keys?.left.isDown));
+          input.data.moveY = Number(Boolean(this.keys?.down.isDown)) - Number(Boolean(this.keys?.up.isDown));
+          input.data.aimX = Phaser.Math.Clamp(pointer.worldX, 0, width);
+          input.data.aimY = Phaser.Math.Clamp(pointer.worldY, 0, height);
+          input.send();
         }
 
-        const currentPlayers = latestPlayers.current;
-        if (this.drawnPlayers === currentPlayers) return;
-        this.drawnPlayers = currentPlayers;
         this.markers.clear();
-        for (const player of currentPlayers) {
+        for (const [sessionId, player] of players) {
+          const x = predict.value(player, "x");
+          const y = predict.value(player, "y");
+          const aim = predict.value(player, "aim");
           const color = Phaser.Display.Color.HexStringToColor(player.color).color;
-          const outline = player.sessionId === room.sessionId ? 0xffffff : 0x131e1b;
+          const outline = sessionId === room.sessionId ? 0xffffff : 0x131e1b;
           this.markers.lineStyle(2, color).lineBetween(
-            player.x, player.y,
-            player.x + Math.cos(player.aim) * 22, player.y + Math.sin(player.aim) * 22,
+            x, y, x + Math.cos(aim) * 22, y + Math.sin(aim) * 22,
           );
-          this.markers.fillStyle(color).fillCircle(player.x, player.y, arenaPlayerRadius);
-          this.markers.lineStyle(2, outline).strokeCircle(player.x, player.y, arenaPlayerRadius);
+          this.markers.fillStyle(color).fillCircle(x, y, arenaPlayerRadius);
+          this.markers.lineStyle(2, outline).strokeCircle(x, y, arenaPlayerRadius);
         }
       }
     }
@@ -84,7 +97,10 @@ export default function ArenaView({ players, room }: {
       audio: { noAudio: true },
       scene: ArenaScene,
     });
-    return () => game.destroy(true);
+    return () => {
+      predict.dispose();
+      game.destroy(true);
+    };
   }, [room]);
 
   return (

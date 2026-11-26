@@ -1,7 +1,7 @@
 import { Client, type Room, type SeatReservation } from "@colyseus/sdk";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import type { ArenaPlayer } from "../../shared/src/arena.ts";
+import { ArenaState } from "../../shared/src/arena-schema";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
@@ -17,8 +17,7 @@ function App() {
   const [founded, setFounded] = useState<Faction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [arena, setArena] = useState<{ room: Room; territoryName: string } | null>(null);
-  const [arenaPlayers, setArenaPlayers] = useState<ArenaPlayer[]>([]);
+  const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string } | null>(null);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
   const [now, setNow] = useState(Date.now);
@@ -117,9 +116,7 @@ function App() {
           setError(result.error);
           return;
         }
-        const arenaRoom = await client.consumeSeatReservation(result.reservation);
-        setArenaPlayers([]);
-        arenaRoom.onMessage("arenaPlayers", (players: ArenaPlayer[]) => setArenaPlayers(players));
+        const arenaRoom = await client.consumeSeatReservation(result.reservation, ArenaState);
         arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
         const territoryName = worldMap.territories.find(({ id }) => id === territoryId)?.name ?? territoryId;
         setArena({ room: arenaRoom, territoryName });
@@ -144,7 +141,7 @@ function App() {
         <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
         <p>Move with WASD. Aim with the mouse.</p>
         <Suspense fallback={<p role="status">Loading arena…</p>}>
-          <ArenaView players={arenaPlayers} room={arena.room} />
+          <ArenaView room={arena.room} />
         </Suspense>
       </main>
     );

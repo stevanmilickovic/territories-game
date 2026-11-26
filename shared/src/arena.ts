@@ -4,17 +4,9 @@ export const arenaPlayerRadius = 9;
 
 export type ArenaPoint = { x: number; y: number };
 
-export type ArenaPlayer = ArenaPoint & {
-  sessionId: string;
-  color: string;
-  aim: number;
-};
-
-export type ArenaInput = { moveX: number; moveY: number; aimX: number; aimY: number };
-
 export function stepArenaMovement(
   player: ArenaPoint & { aim: number },
-  input: ArenaInput,
+  input: { moveX: number; moveY: number; aimX: number; aimY: number },
   dt: number,
 ): ArenaPoint & { aim: number } {
   const distance = 180 * dt / Math.max(1, Math.hypot(input.moveX, input.moveY));
