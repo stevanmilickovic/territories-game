@@ -1,8 +1,16 @@
 export const arenaLayout = { width: 800, height: 480, edgeInset: 32 };
 export const arenaTickRate = 30;
 export const arenaPlayerRadius = 9;
+export const arenaMaxHealth = 100;
+export const arenaWeapon = {
+  name: "AK-47",
+  damage: 25,
+  shotIntervalTicks: 3,
+  range: Math.hypot(arenaLayout.width, arenaLayout.height),
+};
 
 export type ArenaPoint = { x: number; y: number };
+export type ArenaShot = { shooterId: string; from: ArenaPoint; to: ArenaPoint; hit: boolean };
 
 export function stepArenaMovement(
   player: ArenaPoint & { aim: number },

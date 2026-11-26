@@ -139,7 +139,7 @@ function App() {
           <p role="status">You joined as {founded?.name}.</p>
         </header>
         <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
-        <p>Move with WASD. Aim with the mouse.</p>
+        <p>Move with WASD. Aim with the mouse. Hold left click to fire.</p>
         <Suspense fallback={<p role="status">Loading arena…</p>}>
           <ArenaView room={arena.room} />
         </Suspense>

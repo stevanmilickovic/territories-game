@@ -2,6 +2,8 @@ import { schema, t, type SchemaType } from "@colyseus/schema";
 
 export const ArenaPlayer = schema({
   color: t.string(),
+  factionId: t.string(),
+  health: t.uint8(),
   x: t.float64(),
   y: t.float64(),
   aim: t.float64(),
@@ -17,5 +19,6 @@ export const ArenaInput = schema({
   moveY: t.int8(),
   aimX: t.float64(),
   aimY: t.float64(),
+  fire: t.boolean(),
 }, "ArenaInput");
 export type ArenaInput = SchemaType<typeof ArenaInput>;
