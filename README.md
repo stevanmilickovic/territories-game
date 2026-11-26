@@ -1,20 +1,20 @@
 ﻿# Territories Game
 
-Territories Game is a planned browser multiplayer game where players form factions, compete for territory on a shared world map, and settle disputes in real-time battles. The world map persists between battles, and a history book lets players revisit past ownership maps.
+Territories Game is a planned browser multiplayer game where players form factions and fight for control of territories in real-time arenas. A shared world map shows current ownership, and a history book lets players revisit past ownership maps.
 
 ## How it plays
 
 1. **Found a faction.** A player who wants to conquer territory creates a faction, gives it a name and color, and designs a flag on a 6 × 6 pixel grid. A territory can have at most one owning faction.
-2. **Challenge a territory.** A faction with no holdings can attack any territory. A short gathering window gives other players time to join the attacking faction for that battle. Other factions can also enter the contest independently. If the territory already has an owner, its faction is automatically entered as the defender, and individual players choose whether to participate.
-3. **Fight for control.** When the gathering window closes, participants enter a separate battle instance. The current concept is an arcade-style top-down shooter on procedurally generated terrain. The result determines who controls the contested territory on the shared map.
+2. **Challenge a territory.** A faction with no holdings can attack any territory. A faction that owns land can attack only territories adjacent to at least one of its holdings. Each attacking faction starts its own gathering window when it declares, including when a fight is already underway. A territory can sit idle until someone attacks.
+3. **Fight for control.** Each territory has one shared arena with a single central capture point. The owning faction can enter at any time and spawns near the center. When an attacking faction finishes gathering, it gets a virtual spawn point at the edge of that same arena, and its players spawn around it. Players can join their faction while the fight is underway. Capturing the central point transfers ownership, and fighting can continue as long as factions want to contest the territory.
 4. **Revisit the world map.** At a set time each day, the game saves a snapshot of territory ownership. Any player can open the history book and view the map from a previous day.
 
 ## Open design questions
 
-- Which territories can a faction attack once it already holds land?
-- What determines the winner, and how does a battle resolve if no defenders show up?
-- How should factions spawn when several sides join the same fight?
-- Should the defending faction receive an advantage?
+- How does capture progress work if several factions are present at the center?
+- How do spawn assignments and attack eligibility change when ownership changes during a fight?
+- How should the arena assign edge spawn points when many factions enter?
+- How should resources work in a later version?
 - Could factions start with a king and pass the title to a successor when the king dies? How would succession work?
 
 ## Planned technology stack
@@ -37,10 +37,10 @@ Territories Game is a planned browser multiplayer game where players form factio
 The planned monorepo has three workspaces.
 
 - **`client/`** contains the React world map, faction tools, and history book, plus the Phaser battle client.
-- **`server/`** hosts a Colyseus world room and a separate room for each battle in one Node.js service. The server runs the authoritative battle simulation and serves Express routes as HTTP endpoints are needed.
+- **`server/`** hosts a Colyseus world room and one arena room per active territory in one Node.js service. The server runs the authoritative arena simulation and serves Express routes as HTTP endpoints are needed.
 - **`shared/`** contains TypeScript types and protocol contracts used by both sides.
 
-PostgreSQL stores faction data, current territory ownership, finalized battle results, and daily map snapshots. Each active battle runs in its own Colyseus room with simulation state in memory. Finalizing a battle records its result and applies any ownership change in one transaction that can be safely retried.
+PostgreSQL stores faction data, current territory ownership, capture results, and daily map snapshots. Active arena state stays in memory. Recording a capture and changing ownership happen in one transaction that can be safely retried.
 
 The initial deployment targets a single VPS with Docker Compose. Redis is reserved for coordinating rooms across processes or hosts if needed. Google AdSense or H5 Games Ads may be considered once the core game is playable, subject to approval.
 
