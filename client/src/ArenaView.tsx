@@ -8,6 +8,11 @@ import {
 } from "../../shared/src/arena";
 
 const { width, height } = arenaLayout;
+const playerInterpolation = {
+  x: "lerp",
+  y: "lerp",
+  aim: { mode: "lerp", angle: true },
+} as const;
 
 export default function ArenaView({ room }: { room: Room<unknown, ArenaState> }) {
   const host = useRef<HTMLDivElement>(null);
@@ -24,6 +29,8 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
       private hud!: Phaser.GameObjects.Text;
       private keys?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
       private trackingPlayers = false;
+      private resetLocalPrediction?: () => void;
+      private readonly playerLives = new WeakMap<object, number>();
       private firePressed = false;
       private shotCooldown = 0;
       private hitUntil = 0;
@@ -70,23 +77,37 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
         const localPlayer = players?.get(room.sessionId);
         if (!players || !localPlayer) return;
         if (!this.trackingPlayers) {
-          predict.attachAll("players", {
-            x: "lerp",
-            y: "lerp",
-            aim: { mode: "lerp", angle: true },
-          });
-          predict.reconciler(localPlayer, {
+          predict.attachAll("players", playerInterpolation);
+          const reconciler = predict.reconciler(localPlayer, {
             input,
             fields: ["x", "y", "aim"],
             smoothMs: 65,
             step: ({ dt }, player, command) => {
-              if (localPlayer.health > 0) {
+              if (localPlayer.health > 0 && command.life === localPlayer.life) {
                 Object.assign(player, stepArenaMovement(player, command, dt));
               }
             },
           });
+          this.resetLocalPrediction = () => reconciler.reset();
           this.trackingPlayers = true;
         }
+
+        for (const [sessionId, player] of players) {
+          const previousLife = this.playerLives.get(player);
+          if (previousLife === player.life) continue;
+          this.playerLives.set(player, player.life);
+          if (previousLife === undefined) continue;
+          if (sessionId === room.sessionId) {
+            this.resetLocalPrediction?.();
+            this.firePressed = false;
+            this.shotCooldown = 0;
+            this.hitUntil = 0;
+          } else {
+            predict.detach(player);
+            predict.attach(player, playerInterpolation);
+          }
+        }
+
         const now = performance.now();
         const steps = predict.tick(now);
         const pointer = this.input.activePointer.updateWorldPoint(this.cameras.main);
@@ -97,6 +118,7 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
           input.data.aimX = Phaser.Math.Clamp(pointer.worldX, 0, width);
           input.data.aimY = Phaser.Math.Clamp(pointer.worldY, 0, height);
           input.data.fire = localPlayer.health > 0 && (this.firePressed || pointer.leftButtonDown());
+          input.data.life = localPlayer.life;
           this.firePressed = false;
           this.shotCooldown = Math.max(0, this.shotCooldown - 1);
           if (input.data.fire && this.shotCooldown === 0) {
@@ -130,9 +152,10 @@ export default function ArenaView({ room }: { room: Room<unknown, ArenaState> })
         }
 
         const hitFeedback = now < this.hitUntil ? "   Hit" : "";
+        const secondsToRespawn = Math.ceil((localPlayer.respawnAt - room.clock.serverNow()) / 1000);
         this.hud.setText(localPlayer.health > 0
           ? `${arenaWeapon.name}   Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
-          : "Eliminated");
+          : secondsToRespawn > 0 ? `Respawn in ${secondsToRespawn}s` : "Respawning…");
         this.markers.clear();
         this.tracers = this.tracers.filter(({ expiresAt }) => expiresAt > now);
         for (const { from, to } of this.tracers) {

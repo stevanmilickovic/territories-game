@@ -2,6 +2,7 @@ export const arenaLayout = { width: 800, height: 480, edgeInset: 32 };
 export const arenaTickRate = 30;
 export const arenaPlayerRadius = 9;
 export const arenaMaxHealth = 100;
+export const arenaRespawnDelayMs = 5000;
 export const arenaWeapon = {
   name: "AK-47",
   damage: 25,
