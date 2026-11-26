@@ -1,7 +1,7 @@
 export type TerritoryChallenge = {
   territoryId: string;
   challengerFactionId: string;
-  closesAt: number;
+  readyAt: number;
 };
 
 export type StartChallengeResult =

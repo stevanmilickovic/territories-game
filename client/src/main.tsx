@@ -83,8 +83,8 @@ function App() {
     try {
       const result: StartChallengeResult = await room.request("startChallenge", territory.id);
       if (result.ok) {
-        const deadline = new Date(result.challenge.closesAt).toLocaleTimeString();
-        setChallengeNotice(`Challenge opened for ${territory.name}. Gathering deadline ${deadline}.`);
+        const readyTime = new Date(result.challenge.readyAt).toLocaleTimeString();
+        setChallengeNotice(`Challenge opened for ${territory.name}. Your faction gathers until ${readyTime}.`);
       } else {
         setError(result.error);
       }

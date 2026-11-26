@@ -5,6 +5,7 @@ type Territory = {
   readonly name: string;
   readonly seed: Point;
   readonly outline: readonly Point[];
+  readonly neighborIds: readonly string[];
   readonly ownerFactionId: string | null;
 };
 
@@ -38,6 +39,7 @@ export const worldMap = {
   territories: [
     {
       id: "westreach",
+      neighborIds: ["eastwatch", "southshore"],
       name: "Westreach",
       seed: [280, 220],
       outline: [...northBorder, ...westernCoastline, ...southwestBorder.slice(1).reverse()],
@@ -45,6 +47,7 @@ export const worldMap = {
     },
     {
       id: "eastwatch",
+      neighborIds: ["westreach", "southshore"],
       name: "Eastwatch",
       seed: [520, 220],
       outline: [...southeastBorder, ...easternCoastline.slice().reverse(), ...northBorder.slice(1).reverse()],
@@ -52,6 +55,7 @@ export const worldMap = {
     },
     {
       id: "southshore",
+      neighborIds: ["westreach", "eastwatch"],
       name: "Southshore",
       seed: [400, 460],
       outline: [...southwestBorder, ...southernCoastline.slice().reverse(), ...southeastBorder.slice(1).reverse()],

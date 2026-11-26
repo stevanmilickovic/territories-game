@@ -3,6 +3,7 @@ import { defineRoom, defineServer, Room, type Client } from "colyseus";
 import type { StartChallengeResult, TerritoryChallenge } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
+import { canAttackTerritory } from "./attack-eligibility.ts";
 
 type GuestClient = Client<{ userData: { guestName: string } }>;
 const gatheringWindowMs = 30_000;
@@ -11,7 +12,10 @@ class WorldRoom extends Room {
   autoDispose = false;
   private nextGuestNumber = 1;
   private readonly factionsByFounder = new Map<string, Faction>();
-  private readonly challengesByTerritory = new Map<string, TerritoryChallenge>();
+  private readonly ownership = new Map<string, string | null>(
+    worldMap.territories.map(({ id, ownerFactionId }) => [id, ownerFactionId]),
+  );
+  private readonly challengesByTerritory = new Map<string, Map<string, TerritoryChallenge>>();
 
   messages = {
     startChallenge: (client: GuestClient, territoryId: unknown): StartChallengeResult => {
@@ -25,23 +29,23 @@ class WorldRoom extends Room {
         return { ok: false, error: "Choose a valid territory." };
       }
 
-      const now = Date.now();
-      const existing = this.challengesByTerritory.get(territory.id);
-      if (existing && existing.closesAt > now) {
-        return { ok: false, error: "This territory already has an open challenge." };
+      if (!canAttackTerritory(faction.id, territory, this.ownership)) {
+        return { ok: false, error: "Choose an adjacent territory your faction does not own." };
+      }
+
+      const challenges = this.challengesByTerritory.get(territory.id)
+        ?? new Map<string, TerritoryChallenge>();
+      if (challenges.has(faction.id)) {
+        return { ok: false, error: "Your faction has already challenged this territory." };
       }
 
       const challenge = {
         territoryId: territory.id,
         challengerFactionId: faction.id,
-        closesAt: now + gatheringWindowMs,
+        readyAt: Date.now() + gatheringWindowMs,
       };
-      this.challengesByTerritory.set(territory.id, challenge);
-      this.clock.setTimeout(() => {
-        if (this.challengesByTerritory.get(territory.id) === challenge) {
-          this.challengesByTerritory.delete(territory.id);
-        }
-      }, gatheringWindowMs);
+      challenges.set(faction.id, challenge);
+      this.challengesByTerritory.set(territory.id, challenges);
       return { ok: true, challenge };
     },
 
