@@ -42,6 +42,13 @@ header p, .faction-list > p { color: #b7c7b9; }
   font: bold 28px Georgia, serif;
 }
 
+.arena-canvas {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 5 / 3;
+  margin-top: 1rem;
+}
+
 fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
 label { display: grid; gap: 0.35rem; }
 input, select, button {

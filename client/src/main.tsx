@@ -1,12 +1,14 @@
 import { Client, type Room, type SeatReservation } from "@colyseus/sdk";
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
+import type { ArenaPlayer } from "../../shared/src/arena.ts";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
 import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
+const ArenaView = lazy(() => import("./ArenaView"));
 
 function App() {
   const [status, setStatus] = useState("Connecting to the world…");
@@ -16,6 +18,7 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [arena, setArena] = useState<{ room: Room; territoryName: string } | null>(null);
+  const [arenaPlayers, setArenaPlayers] = useState<ArenaPlayer[]>([]);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
   const [now, setNow] = useState(Date.now);
@@ -115,6 +118,8 @@ function App() {
           return;
         }
         const arenaRoom = await client.consumeSeatReservation(result.reservation);
+        setArenaPlayers([]);
+        arenaRoom.onMessage("arenaPlayers", (players: ArenaPlayer[]) => setArenaPlayers(players));
         arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
         const territoryName = worldMap.territories.find(({ id }) => id === territoryId)?.name ?? territoryId;
         setArena({ room: arenaRoom, territoryName });
@@ -137,6 +142,9 @@ function App() {
           <p role="status">You joined as {founded?.name}.</p>
         </header>
         <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
+        <Suspense fallback={<p role="status">Loading arena…</p>}>
+          <ArenaView players={arenaPlayers} sessionId={arena.room.sessionId} />
+        </Suspense>
       </main>
     );
   }

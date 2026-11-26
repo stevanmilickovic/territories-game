@@ -79,7 +79,11 @@ class WorldRoom extends Room {
         this.arenasByTerritory.set(territoryId, arena);
       }
 
-      const reservation = await matchMaker.reserveSeatFor(await arena, {}, { factionId: faction.id });
+      const reservation = await matchMaker.reserveSeatFor(await arena, {}, {
+        factionId: faction.id,
+        color: faction.color,
+        isOwner: this.ownership.get(territoryId) === faction.id,
+      });
       return { ok: true, reservation };
     },
 
