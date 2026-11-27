@@ -5,6 +5,7 @@ export const ArenaPlayer = schema({
   color: t.string(),
   factionId: t.string(),
   health: t.uint8(),
+  equippedWeaponId: t.string(),
   respawnAt: t.float64(),
   life: t.uint32(),
   x: t.float64(),

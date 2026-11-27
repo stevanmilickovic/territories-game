@@ -186,13 +186,14 @@ export default function ArenaView({ room, factions }: {
         // The camera uses unit zoom and no rotation. Its render matrix still has the previous frame's scroll.
         const aimX = Phaser.Math.Clamp(pointer.x + camera.scrollX, 0, width);
         const aimY = Phaser.Math.Clamp(pointer.y + camera.scrollY, 0, height);
+        const hasWeapon = localPlayer.equippedWeaponId === arenaWeapon.id;
         let predictedShot = false;
         for (let step = 0; step < steps; step++) {
           input.data.moveX = Number(Boolean(this.keys?.right.isDown)) - Number(Boolean(this.keys?.left.isDown));
           input.data.moveY = Number(Boolean(this.keys?.down.isDown)) - Number(Boolean(this.keys?.up.isDown));
           input.data.aimX = aimX;
           input.data.aimY = aimY;
-          input.data.fire = localPlayer.health > 0 && (this.firePressed || pointer.leftButtonDown());
+          input.data.fire = hasWeapon && localPlayer.health > 0 && (this.firePressed || pointer.leftButtonDown());
           input.data.life = localPlayer.life;
           this.firePressed = false;
           this.shotCooldown = Math.max(0, this.shotCooldown - 1);
@@ -232,7 +233,7 @@ export default function ArenaView({ room, factions }: {
         const hitFeedback = now < this.hitUntil ? "   Hit" : "";
         const secondsToRespawn = Math.ceil((localPlayer.respawnAt - room.clock.serverNow()) / 1000);
         this.hud.setText(localPlayer.health > 0
-          ? `${arenaWeapon.name}   Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
+          ? `${hasWeapon ? arenaWeapon.name : "Unarmed"}   Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
           : secondsToRespawn > 0 ? `Respawn in ${secondsToRespawn}s` : "Respawning…");
         this.markers.clear();
         for (const [sessionId, player] of players) {

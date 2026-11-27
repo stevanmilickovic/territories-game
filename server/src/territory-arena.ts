@@ -119,6 +119,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
           Object.assign(player, this.getSpawn(member), {
             aim: 0,
             health: arenaMaxHealth,
+            equippedWeaponId: arenaWeapon.id,
             respawnAt: 0,
             life: this.nextLife++,
           });
@@ -128,7 +129,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
       }
       if (!input || input.life !== player.life) continue;
       Object.assign(player, stepArenaMovement(player, input, dt));
-      if (input.fire && tick >= (this.nextShotTick.get(sessionId) ?? 0)) {
+      if (input.fire && player.equippedWeaponId === arenaWeapon.id && tick >= (this.nextShotTick.get(sessionId) ?? 0)) {
         this.nextShotTick.set(sessionId, tick + arenaWeapon.shotIntervalTicks);
         this.spawnProjectile(sessionId, player, channel.consumedCount);
       }
@@ -188,7 +189,10 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
 
       if (hit) {
         hit.health = Math.max(0, hit.health - arenaWeapon.damage);
-        if (hit.health === 0) hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
+        if (hit.health === 0) {
+          hit.equippedWeaponId = "";
+          hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
+        }
       }
       this.state.projectiles.delete(projectile.id);
       const shot: ArenaShot = { shooterId, from: projectile.origin, to, hit: Boolean(hit) };
@@ -219,7 +223,9 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     const respawnAt = deadline > this.clock.elapsedTime ? deadline : 0;
     this.state.players.set(client.sessionId, new ArenaPlayer({
       factionId, color, displayName, ...this.getSpawn(client.auth), aim: 0,
-      health: respawnAt ? 0 : arenaMaxHealth, respawnAt, life: this.nextLife++,
+      health: respawnAt ? 0 : arenaMaxHealth,
+      equippedWeaponId: respawnAt ? "" : arenaWeapon.id,
+      respawnAt, life: this.nextLife++,
     }));
   }
 

@@ -6,6 +6,7 @@ export const arenaRespawnDelayMs = 5000;
 export const arenaCaptureRadius = 24;
 export const arenaCaptureTicks = 3 * arenaTickRate;
 export const arenaWeapon = {
+  id: "ak-47",
   name: "AK-47",
   damage: 25,
   shotIntervalTicks: 3,
