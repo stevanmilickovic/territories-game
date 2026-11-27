@@ -58,17 +58,25 @@ class WorldRoom extends Room {
       return { ok: true, challenge };
     },
 
-    enterArena: async (client: WorldClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
-      const faction = this.factionsByFounder.get(client.sessionId);
-      if (!faction) return { ok: false, error: "Found a faction before entering an arena." };
+    enterArena: async (client: WorldClient, payload: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
       if (!client.auth) return { ok: false, error: "Join the world again before entering an arena." };
-      if (typeof territoryId !== "string" || !this.ownership.has(territoryId)) {
+      if (typeof payload !== "object" || payload === null || !("territoryId" in payload)
+        || typeof payload.territoryId !== "string" || !this.ownership.has(payload.territoryId)) {
         return { ok: false, error: "Choose a valid territory." };
       }
+      const { territoryId } = payload;
+      const factionId = "factionId" in payload ? payload.factionId : undefined;
+      const faction = [...this.factionsByFounder.values()].find(({ id }) => id === factionId);
+      if (!faction) return { ok: false, error: "Choose a valid faction." };
+
+      const challenges = this.challengesByTerritory.get(territoryId);
+      if (faction.id !== this.factionsByFounder.get(client.sessionId)?.id && !challenges?.size) {
+        return { ok: false, error: "You can join another faction only in a contested territory." };
+      }
       if (this.ownership.get(territoryId) !== faction.id) {
-        const challenge = this.challengesByTerritory.get(territoryId)?.get(faction.id);
-        if (!challenge) return { ok: false, error: "Declare a challenge before entering." };
-        if (Date.now() < challenge.readyAt) return { ok: false, error: "Your faction is still gathering." };
+        const challenge = challenges?.get(faction.id);
+        if (!challenge) return { ok: false, error: "That faction is not contesting this territory." };
+        if (Date.now() < challenge.readyAt) return { ok: false, error: "That faction is still gathering." };
       }
 
       let arena = this.arenasByTerritory.get(territoryId);

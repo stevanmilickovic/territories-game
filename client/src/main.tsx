@@ -20,7 +20,7 @@ function App() {
   const [founded, setFounded] = useState<Faction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string } | null>(null);
+  const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string; sideName: string } | null>(null);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
   const [clockOffset, setClockOffset] = useState(0);
   const [now, setNow] = useState(Date.now);
@@ -145,22 +145,24 @@ function App() {
     }
   }
 
-  async function actOnTerritory(action: "attack" | "enter") {
+  async function actOnTerritory(action: "attack" | Faction) {
     if (!room || !territory || isSubmitting) return;
-    if (action === "attack" ? !confirmingAttack || !canAttack : !canEnter) return;
+    if (action === "attack" && (!confirmingAttack || !canAttack)) return;
 
     setIsSubmitting(true);
     setProvinceError("");
     try {
-      if (action === "enter") {
-        const result: ArenaEntryResult<SeatReservation> = await room.request("enterArena", territoryId);
+      if (action !== "attack") {
+        const result: ArenaEntryResult<SeatReservation> = await room.request("enterArena", {
+          territoryId, factionId: action.id,
+        });
         if (!result.ok) {
           setProvinceError(result.error);
           return;
         }
         const arenaRoom = await client.consumeSeatReservation(result.reservation, ArenaState);
         arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
-        setArena({ room: arenaRoom, territoryName: territory.name });
+        setArena({ room: arenaRoom, territoryName: territory.name, sideName: action.name });
       } else {
         const result: StartChallengeResult = await room.request("startChallenge", territoryId);
         if (result.ok) setConfirmingAttack(false);
@@ -202,7 +204,7 @@ function App() {
       <main>
         <header>
           <h1>{arena.territoryName} arena</h1>
-          <p role="status">You joined as {founded?.name}.</p>
+          <p role="status">You joined {arena.sideName}.</p>
         </header>
         <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
         <p>Move with WASD. Aim with the mouse. Hold left click to fire.</p>
@@ -220,6 +222,15 @@ function App() {
     challenges: activity?.challenges.filter(({ territoryId }) => territoryId === territory.id) ?? [],
   }));
   const selectedProvince = territories.find(({ id }) => id === territoryId);
+
+  const visitingSides = selectedProvince?.challenges.length
+    ? [
+        selectedProvince.owner,
+        ...selectedProvince.challenges
+          .filter(({ readyAt }) => readyAt <= serverNow)
+          .map(({ challengerFactionId }) => factionsById.get(challengerFactionId)),
+      ].filter((faction): faction is Faction => Boolean(faction && faction.id !== founded?.id))
+    : [];
 
   function renderChallenges(challenges: TerritoryActivity["challenges"]) {
     if (challenges.length === 0) return null;
@@ -354,9 +365,14 @@ function App() {
               <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
               {renderChallenges(selectedProvince.challenges)}
               <div className="province-actions">
-                {canEnter && (
-                  <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("enter")}>Enter arena</button>
+                {canEnter && founded && (
+                  <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(founded)}>Enter arena</button>
                 )}
+                {visitingSides.map((faction) => (
+                  <button key={faction.id} type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(faction)}>
+                    Fight for {faction.name}
+                  </button>
+                ))}
                 {isGathering && <p>Your faction is gathering.</p>}
                 {canAttack && confirmingAttack && (
                   <>
@@ -368,7 +384,7 @@ function App() {
                 {canAttack && !confirmingAttack && (
                   <button type="button" disabled={isSubmitting} onClick={() => setConfirmingAttack(true)}>Declare attack</button>
                 )}
-                {activity && !canEnter && !isGathering && !canAttack && (
+                {activity && !canEnter && !isGathering && !canAttack && visitingSides.length === 0 && (
                   <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
                 )}
               </div>

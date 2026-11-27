@@ -1,4 +1,4 @@
-import { Room, type Client } from "colyseus";
+import { ErrorCode, Room, ServerError, type Client } from "colyseus";
 import {
   arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPlayerRadius,
   arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
@@ -170,6 +170,12 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   onJoin(client: ArenaClient) {
     if (!client.auth) throw new Error("Missing arena reservation identity.");
     const { guestSessionId, displayName, factionId, color } = client.auth;
+    for (const sessionId of this.state.players.keys()) {
+      if (this.clients.getById(sessionId)?.auth?.guestSessionId === guestSessionId) {
+        throw new ServerError(ErrorCode.APPLICATION_ERROR, "Leave the arena before joining again.");
+      }
+    }
+
     const deadline = this.pendingRespawns.get(guestSessionId) ?? 0;
     const respawnAt = deadline > this.clock.elapsedTime ? deadline : 0;
     this.state.players.set(client.sessionId, new ArenaPlayer({
