@@ -4,16 +4,17 @@ import {
   arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena.ts";
-import { ArenaInput, ArenaPlayer, ArenaState } from "../../shared/src/arena-schema.ts";
+import { ArenaInput, ArenaPlayer, ArenaProjectile, ArenaState } from "../../shared/src/arena-schema.ts";
 
 type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
 
 type Projectile = {
+  id: string;
   shooterId: string;
   factionId: string;
   origin: ArenaPoint;
-  position: ArenaPoint;
+  position: InstanceType<typeof ArenaProjectile>;
   directionX: number;
   directionY: number;
   remainingDistance: number;
@@ -107,9 +108,9 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
 
   private stepPlayers(dt: number, tick: number) {
     const now = this.clock.elapsedTime;
-    const firingPlayers: string[] = [];
     for (const [sessionId, player] of this.state.players) {
-      const input = this.inputs.get(sessionId).next();
+      const channel = this.inputs.get(sessionId);
+      const input = channel.next();
       if (player.health === 0) {
         const member = this.clients.getById(sessionId)?.auth;
         if (member && now >= player.respawnAt) {
@@ -126,28 +127,27 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
       if (!input || input.life !== player.life) continue;
       Object.assign(player, stepArenaMovement(player, input, dt));
       if (input.fire && tick >= (this.nextShotTick.get(sessionId) ?? 0)) {
-        firingPlayers.push(sessionId);
+        this.nextShotTick.set(sessionId, tick + arenaWeapon.shotIntervalTicks);
+        this.spawnProjectile(sessionId, player, channel.consumedCount);
       }
-    }
-    for (const sessionId of firingPlayers) {
-      const shooter = this.state.players.get(sessionId);
-      if (!shooter || shooter.health === 0) continue;
-      this.nextShotTick.set(sessionId, tick + arenaWeapon.shotIntervalTicks);
-      this.spawnProjectile(sessionId, shooter);
     }
   }
 
-  private spawnProjectile(shooterId: string, shooter: typeof ArenaPlayer.prototype) {
+  private spawnProjectile(shooterId: string, shooter: typeof ArenaPlayer.prototype, inputSequence: number) {
     const { x, y, aim, factionId } = shooter;
     const directionX = Math.cos(aim);
     const directionY = Math.sin(aim);
     const distanceToXEdge = directionX === 0 ? Infinity : ((directionX > 0 ? width : 0) - x) / directionX;
     const distanceToYEdge = directionY === 0 ? Infinity : ((directionY > 0 ? height : 0) - y) / directionY;
+    const id = `${shooterId}:${inputSequence}`;
+    const position = new ArenaProjectile({ x, y });
+    this.state.projectiles.set(id, position);
     this.projectiles.push({
+      id,
       shooterId,
       factionId,
       origin: { x, y },
-      position: { x, y },
+      position,
       directionX,
       directionY,
       remainingDistance: Math.min(arenaWeapon.range, distanceToXEdge, distanceToYEdge),
@@ -179,7 +179,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
 
       const to = { x: position.x + directionX * distance, y: position.y + directionY * distance };
       if (!hit && distance < remainingDistance) {
-        projectile.position = to;
+        Object.assign(position, to);
         projectile.remainingDistance -= distance;
         return true;
       }
@@ -188,6 +188,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
         hit.health = Math.max(0, hit.health - arenaWeapon.damage);
         if (hit.health === 0) hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
       }
+      this.state.projectiles.delete(projectile.id);
       const shot: ArenaShot = { shooterId, from: projectile.origin, to, hit: Boolean(hit) };
       this.broadcast("arenaShot", shot);
       return false;

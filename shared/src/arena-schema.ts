@@ -12,8 +12,14 @@ export const ArenaPlayer = schema({
   aim: t.float64(),
 }, "ArenaPlayer");
 
+export const ArenaProjectile = schema({
+  x: t.float64(),
+  y: t.float64(),
+}, "ArenaProjectile");
+
 export const ArenaState = schema({
   players: t.map(ArenaPlayer),
+  projectiles: t.map(ArenaProjectile),
   ownerFactionId: t.string(),
   captureFactionId: t.string(),
   captureTicks: t.uint16(),

@@ -48,7 +48,11 @@ export default function ArenaView({ room, factions }: {
       private firePressed = false;
       private shotCooldown = 0;
       private hitUntil = 0;
-      private tracers: { from: ArenaPoint; to: ArenaPoint; expiresAt: number }[] = [];
+      private readonly predictedProjectiles = new Map<number, {
+        origin: ArenaPoint;
+        aim: number;
+        startedAt: number;
+      }>();
 
       create() {
         this.cameras.main.setBounds(0, 0, width, height);
@@ -72,11 +76,8 @@ export default function ArenaView({ room, factions }: {
           }
         });
         const stopShots = room.onMessage<ArenaShot>("arenaShot", (shot) => {
-          const now = performance.now();
-          if (shot.shooterId !== room.sessionId) {
-            this.tracers.push({ from: shot.from, to: shot.to, expiresAt: now + 80 });
-          } else if (shot.hit) {
-            this.hitUntil = now + 180;
+          if (shot.shooterId === room.sessionId && shot.hit) {
+            this.hitUntil = performance.now() + 180;
           }
         });
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopShots);
@@ -165,6 +166,7 @@ export default function ArenaView({ room, factions }: {
             snapCamera = true;
             this.firePressed = false;
             this.shotCooldown = 0;
+            this.predictedProjectiles.clear();
             this.hitUntil = 0;
           } else {
             predict.detach(player);
@@ -198,11 +200,16 @@ export default function ArenaView({ room, factions }: {
           input.data.life = localPlayer.life;
           this.firePressed = false;
           this.shotCooldown = Math.max(0, this.shotCooldown - 1);
+          input.send();
           if (input.data.fire && this.shotCooldown === 0) {
             this.shotCooldown = arenaWeapon.shotIntervalTicks;
             predictedShot = true;
+            this.predictedProjectiles.set(input.sentCount, {
+              origin: { x: predict.value(localPlayer, "x"), y: predict.value(localPlayer, "y") },
+              aim: predict.value(localPlayer, "aim"),
+              startedAt: now,
+            });
           }
-          input.send();
         }
 
         const localX = predict.value(localPlayer, "x");
@@ -212,14 +219,6 @@ export default function ArenaView({ room, factions }: {
           : Math.atan2(aimY - localY, aimX - localX);
 
         if (predictedShot) {
-          const x = localX;
-          const y = localY;
-          const aim = localAim;
-          this.tracers.push({
-            from: { x, y },
-            to: { x: x + Math.cos(aim) * arenaWeapon.range, y: y + Math.sin(aim) * arenaWeapon.range },
-            expiresAt: now + 80,
-          });
           if (audio?.state === "running") {
             const pulse = audio.createOscillator();
             const volume = audio.createGain();
@@ -240,11 +239,6 @@ export default function ArenaView({ room, factions }: {
           ? `${arenaWeapon.name}   Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
           : secondsToRespawn > 0 ? `Respawn in ${secondsToRespawn}s` : "Respawning…");
         this.markers.clear();
-        this.tracers = this.tracers.filter(({ expiresAt }) => expiresAt > now);
-        for (const { from, to } of this.tracers) {
-          this.markers.lineStyle(2, 0xffefae, 0.7).lineBetween(from.x, from.y, to.x, to.y);
-          this.markers.fillStyle(0xffefae).fillCircle(from.x, from.y, 4);
-        }
         for (const [sessionId, player] of players) {
           if (player.health === 0) {
             this.nameLabels.get(sessionId)?.setVisible(false);
@@ -261,6 +255,22 @@ export default function ArenaView({ room, factions }: {
           this.markers.fillStyle(color).fillCircle(x, y, arenaPlayerRadius);
           this.markers.lineStyle(2, outline).strokeCircle(x, y, arenaPlayerRadius);
           this.renderName(sessionId, player.displayName, x, y);
+        }
+
+        this.markers.fillStyle(0xffefae);
+        for (const [sequence, { origin, aim, startedAt }] of this.predictedProjectiles) {
+          const distance = (now - startedAt) * arenaWeapon.projectileSpeed / 1000;
+          const x = origin.x + Math.cos(aim) * distance;
+          const y = origin.y + Math.sin(aim) * distance;
+          if (sequence <= input.lastProcessed || room.state.projectiles.has(`${room.sessionId}:${sequence}`)
+            || distance > arenaWeapon.range || x < 0 || x > width || y < 0 || y > height) {
+            this.predictedProjectiles.delete(sequence);
+            continue;
+          }
+          this.markers.fillRect(x - 2, y - 2, 4, 4);
+        }
+        for (const { x, y } of room.state.projectiles.values()) {
+          this.markers.fillRect(x - 2, y - 2, 4, 4);
         }
       }
     }
