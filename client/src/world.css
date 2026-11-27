@@ -95,6 +95,46 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .map .territory-shape {
   fill: #acb58a;
+  cursor: pointer;
+}
+
+.map .territory-shape:hover,
+.map .territory-shape:focus-visible,
+.map .territory-shape[aria-pressed="true"] {
+  stroke: #ffdc8f;
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.province-panel {
+  right: var(--corner-inset);
+  bottom: var(--corner-inset);
+  width: min(19rem, calc(100% - 2 * var(--corner-inset)));
+  z-index: 2;
+}
+
+.province-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid #53655b;
+}
+
+.province-heading h2 { font-size: 1.15rem; margin: 0; }
+.province-panel .overlay-content {
+  max-height: calc(var(--map-size) - 2 * var(--corner-inset) - 3.5rem);
+}
+.province-actions { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+.province-actions p { margin: 0; }
+.province-panel .secondary-button { background: transparent; color: #e8eddf; }
+.province-panel .province-challenges { padding: 0; list-style: none; }
+.province-panel .province-challenges li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 0.75rem;
 }
 
 .map-relief {
@@ -117,6 +157,7 @@ header p, .faction-list > p { color: #b7c7b9; }
 }
 
 .map text {
+  pointer-events: none;
   fill: #172c24;
   font: bold 4.5px Georgia, serif;
   paint-order: stroke;

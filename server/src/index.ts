@@ -8,7 +8,7 @@ import type {
 } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
-import { canAttackTerritory } from "./attack-eligibility.ts";
+import { canAttackTerritory } from "../../shared/src/attack-eligibility.ts";
 import { TerritoryArena } from "./territory-arena.ts";
 
 type WorldClient = Client<{ auth: { displayName: string } }>;

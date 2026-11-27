@@ -2,6 +2,7 @@ import { Client, ErrorCode, type Room, type SeatReservation } from "@colyseus/sd
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { ArenaState } from "../../shared/src/arena-schema";
+import { canAttackTerritory } from "../../shared/src/attack-eligibility";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
@@ -24,6 +25,8 @@ function App() {
   const [clockOffset, setClockOffset] = useState(0);
   const [now, setNow] = useState(Date.now);
   const [territoryId, setTerritoryId] = useState("");
+  const [confirmingAttack, setConfirmingAttack] = useState(false);
+  const [provinceError, setProvinceError] = useState("");
 
   useEffect(() => {
     if (!joinRequest) return;
@@ -56,6 +59,8 @@ function App() {
           setFounded(null);
           setActivity(null);
           setTerritoryId("");
+          setConfirmingAttack(false);
+          setProvinceError("");
           setError("");
           setJoinError("Disconnected from the world. Join again to continue.");
           setJoinRequest(null);
@@ -89,12 +94,23 @@ function App() {
   }, [arena]);
 
   const serverNow = now + clockOffset;
+  const territory = worldMap.territories.find(({ id }) => id === territoryId);
   const ownChallenge = activity?.challenges.find(
     (challenge) => challenge.territoryId === territoryId && challenge.challengerFactionId === founded?.id,
   );
   const isOwner = Boolean(founded && activity?.owners[territoryId] === founded.id);
   const isGathering = !isOwner && Boolean(ownChallenge && ownChallenge.readyAt > serverNow);
   const canEnter = isOwner || Boolean(ownChallenge && !isGathering);
+  const canAttack = Boolean(founded && territory && activity && !ownChallenge && canAttackTerritory(
+    founded.id, territory, new Map(Object.entries(activity.owners)),
+  ));
+
+  function selectProvince(id: string) {
+    if (isSubmitting) return;
+    setTerritoryId(id);
+    setConfirmingAttack(false);
+    setProvinceError("");
+  }
 
   function joinWorld(username?: string) {
     if (joinRequest) return;
@@ -129,29 +145,29 @@ function App() {
     }
   }
 
-  async function actOnTerritory(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!room || !founded || !territoryId || isSubmitting || isGathering) return;
+  async function actOnTerritory(action: "attack" | "enter") {
+    if (!room || !territory || isSubmitting) return;
+    if (action === "attack" ? !confirmingAttack || !canAttack : !canEnter) return;
 
     setIsSubmitting(true);
-    setError("");
+    setProvinceError("");
     try {
-      if (canEnter) {
+      if (action === "enter") {
         const result: ArenaEntryResult<SeatReservation> = await room.request("enterArena", territoryId);
         if (!result.ok) {
-          setError(result.error);
+          setProvinceError(result.error);
           return;
         }
         const arenaRoom = await client.consumeSeatReservation(result.reservation, ArenaState);
         arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
-        const territoryName = worldMap.territories.find(({ id }) => id === territoryId)?.name ?? territoryId;
-        setArena({ room: arenaRoom, territoryName });
+        setArena({ room: arenaRoom, territoryName: territory.name });
       } else {
         const result: StartChallengeResult = await room.request("startChallenge", territoryId);
-        if (!result.ok) setError(result.error);
+        if (result.ok) setConfirmingAttack(false);
+        else setProvinceError(result.error);
       }
     } catch {
-      setError("The server did not confirm your request. Try again if you’re still connected.");
+      setProvinceError("The server did not confirm your request. Try again if you’re still connected.");
     } finally {
       setIsSubmitting(false);
     }
@@ -201,7 +217,27 @@ function App() {
   const territories = worldMap.territories.map((territory) => ({
     ...territory,
     owner: factionsById.get(activity?.owners[territory.id] ?? ""),
+    challenges: activity?.challenges.filter(({ territoryId }) => territoryId === territory.id) ?? [],
   }));
+  const selectedProvince = territories.find(({ id }) => id === territoryId);
+
+  function renderChallenges(challenges: TerritoryActivity["challenges"]) {
+    if (challenges.length === 0) return null;
+    return (
+      <ul className="province-challenges">
+        {challenges.map(({ challengerFactionId, readyAt }) => {
+          const faction = factionsById.get(challengerFactionId);
+          const seconds = Math.ceil((readyAt - serverNow) / 1000);
+          return (
+            <li key={challengerFactionId}>
+              <span>{faction?.name ?? "Attacking faction"}</span>
+              <span>{seconds > 0 ? `Gathering · ${seconds}s` : "Ready to enter"}</span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
 
   return (
     <main className="world-screen">
@@ -209,11 +245,27 @@ function App() {
         <svg
           className="map"
           viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
-          role="img"
-          aria-label={territories.map(({ name, owner }) => `${name}: ${owner?.name ?? "Unclaimed"}`).join(". ")}
+          role="group"
+          aria-label="Select a province"
         >
-          {territories.map(({ id, path, owner }) => (
-            <path key={id} className="territory-shape" d={path} fillRule="evenodd" style={{ fill: owner?.color }} />
+          {territories.map(({ id, name, path, owner }) => (
+            <path
+              key={id}
+              className="territory-shape"
+              d={path}
+              fillRule="evenodd"
+              style={{ fill: owner?.color }}
+              role="button"
+              tabIndex={0}
+              aria-label={`${name}, ${owner ? `held by ${owner.name}` : "unclaimed"}`}
+              aria-pressed={id === territoryId}
+              onClick={() => selectProvince(id)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                selectProvince(id);
+              }}
+            />
           ))}
           <g className="map-relief" aria-hidden="true">
             {worldMap.reliefPaths.map((path, index) => (
@@ -230,6 +282,7 @@ function App() {
               x={Math.max(13, Math.min(worldMap.width - 13, x))}
               y={Math.max(6, Math.min(worldMap.height - 3, y))}
               textAnchor="middle"
+              aria-hidden="true"
             >
               {name}
             </text>
@@ -243,29 +296,13 @@ function App() {
           <summary>Territories</summary>
           <div className="overlay-content">
             <ul className="territory-activity" aria-label="Territory activity">
-              {territories.map(({ id, name, owner }) => {
-                const challenges = activity?.challenges.filter(({ territoryId }) => territoryId === id) ?? [];
-                return (
-                  <li key={id}>
-                    <strong>{name}</strong>
-                    <span>{owner ? `Held by ${owner.name}` : "Unclaimed"}</span>
-                    {challenges.length > 0 && (
-                      <ul>
-                        {challenges.map(({ challengerFactionId, readyAt }) => {
-                          const faction = factionsById.get(challengerFactionId);
-                          const seconds = Math.ceil((readyAt - serverNow) / 1000);
-                          return (
-                            <li key={challengerFactionId}>
-                              <span>{faction?.name ?? "Attacking faction"}</span>
-                              <span>{seconds > 0 ? `Gathering · ${seconds}s` : "Ready to enter"}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
+              {territories.map(({ id, name, owner, challenges }) => (
+                <li key={id}>
+                  <strong>{name}</strong>
+                  <span>{owner ? `Held by ${owner.name}` : "Unclaimed"}</span>
+                  {renderChallenges(challenges)}
+                </li>
+              ))}
             </ul>
           </div>
         </details>
@@ -273,28 +310,7 @@ function App() {
           <summary>Factions</summary>
           <div className="overlay-content">
             {founded ? (
-              <>
-                <p role="status">You founded <strong>{founded.name}</strong>.</p>
-                <form onSubmit={actOnTerritory}>
-                  <fieldset disabled={!room || !activity || isSubmitting}>
-                    <label>
-                      Territory
-                      <select name="territory" required value={territoryId} onChange={(event) => {
-                        setTerritoryId(event.target.value);
-                        setError("");
-                      }}>
-                        <option value="" disabled>Choose a territory</option>
-                        {worldMap.territories.map(({ id, name }) => (
-                          <option key={id} value={id}>{name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="submit" disabled={isGathering}>
-                      {isGathering ? "Gathering…" : canEnter ? "Enter arena" : "Start challenge"}
-                    </button>
-                  </fieldset>
-                </form>
-              </>
+              <p role="status">You founded <strong>{founded.name}</strong>.</p>
             ) : (
               <form onSubmit={createFaction}>
                 <fieldset disabled={!room || isSubmitting}>
@@ -325,6 +341,41 @@ function App() {
             </div>
           </div>
         </details>
+        {selectedProvince && (
+          <section className="world-overlay province-panel" aria-labelledby="province-heading">
+            <div className="province-heading">
+              <h2 id="province-heading">{selectedProvince.name}</h2>
+              <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => selectProvince("")}>
+                Close
+              </button>
+            </div>
+            <div className="overlay-content">
+              <p>{selectedProvince.owner ? `Held by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
+              <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
+              {renderChallenges(selectedProvince.challenges)}
+              <div className="province-actions">
+                {canEnter && (
+                  <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("enter")}>Enter arena</button>
+                )}
+                {isGathering && <p>Your faction is gathering.</p>}
+                {canAttack && confirmingAttack && (
+                  <>
+                    <p>Declare an attack on {selectedProvince.name}?</p>
+                    <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Confirm attack</button>
+                    <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => setConfirmingAttack(false)}>Cancel</button>
+                  </>
+                )}
+                {canAttack && !confirmingAttack && (
+                  <button type="button" disabled={isSubmitting} onClick={() => setConfirmingAttack(true)}>Declare attack</button>
+                )}
+                {activity && !canEnter && !isGathering && !canAttack && (
+                  <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
+                )}
+              </div>
+              {provinceError && <p role="alert">{provinceError}</p>}
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );
