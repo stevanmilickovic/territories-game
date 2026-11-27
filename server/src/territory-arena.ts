@@ -55,6 +55,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   private readonly nextShotTick = new Map<string, number>();
   private readonly pendingRespawns = new Map<string, number>();
   private nextLife = 1;
+  onArenaEmpty?: () => void;
+  getEntryError?: (guestSessionId: string, factionId: string) => string | undefined;
   onTerritoryCaptured?: (factionId: string) => void;
 
   static override async onAuth() {
@@ -205,6 +207,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   onJoin(client: ArenaClient) {
     if (!client.auth) throw new Error("Missing arena reservation identity.");
     const { guestSessionId, displayName, factionId, color } = client.auth;
+    const entryError = this.getEntryError?.(guestSessionId, factionId);
+    if (entryError) throw new ServerError(ErrorCode.APPLICATION_ERROR, entryError);
     for (const sessionId of this.state.players.keys()) {
       if (this.clients.getById(sessionId)?.auth?.guestSessionId === guestSessionId) {
         throw new ServerError(ErrorCode.APPLICATION_ERROR, "Leave the arena before joining again.");
@@ -234,5 +238,14 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     }
     this.nextShotTick.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
+    if (player && this.state.players.size === 0) {
+      this.projectiles = [];
+      this.state.projectiles.clear();
+      this.edgeSpawns.clear();
+      this.state.captureFactionId = "";
+      this.state.captureTicks = 0;
+      this.state.captureContested = false;
+      this.onArenaEmpty?.();
+    }
   }
 }

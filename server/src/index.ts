@@ -69,15 +69,8 @@ class WorldRoom extends Room {
       const faction = [...this.factionsByFounder.values()].find(({ id }) => id === factionId);
       if (!faction) return { ok: false, error: "Choose a valid faction." };
 
-      const challenges = this.challengesByTerritory.get(territoryId);
-      if (faction.id !== this.factionsByFounder.get(client.sessionId)?.id && !challenges?.size) {
-        return { ok: false, error: "You can join another faction only in a contested territory." };
-      }
-      if (this.ownership.get(territoryId) !== faction.id) {
-        const challenge = challenges?.get(faction.id);
-        if (!challenge) return { ok: false, error: "That faction is not contesting this territory." };
-        if (Date.now() < challenge.readyAt) return { ok: false, error: "That faction is still gathering." };
-      }
+      const entryError = this.getArenaEntryError(territoryId, client.sessionId, faction.id);
+      if (entryError) return { ok: false, error: entryError };
 
       let arena = this.arenasByTerritory.get(territoryId);
       if (!arena) {
@@ -88,6 +81,12 @@ class WorldRoom extends Room {
           const room = matchMaker.getLocalRoomById(listing.roomId);
           if (!(room instanceof TerritoryArena)) throw new Error("Territory arena must be local.");
           room.onTerritoryCaptured = (factionId) => this.applyCapture(territoryId, factionId);
+          room.onArenaEmpty = () => {
+            if (this.challengesByTerritory.delete(territoryId)) {
+              this.broadcast("territoryActivity", this.getTerritoryActivity());
+            }
+          };
+          room.getEntryError = (guestSessionId, factionId) => this.getArenaEntryError(territoryId, guestSessionId, factionId);
           return listing;
         }).catch((error: unknown) => {
           this.arenasByTerritory.delete(territoryId);
@@ -130,6 +129,17 @@ class WorldRoom extends Room {
       return { ok: true, faction };
     },
   };
+
+  private getArenaEntryError(territoryId: string, guestSessionId: string, factionId: string) {
+    const challenges = this.challengesByTerritory.get(territoryId);
+    if (factionId !== this.factionsByFounder.get(guestSessionId)?.id && !challenges?.size) {
+      return "You can join another faction only in a contested territory.";
+    }
+    if (this.ownership.get(territoryId) === factionId) return;
+    const challenge = challenges?.get(factionId);
+    if (!challenge) return "That faction is not contesting this territory.";
+    if (Date.now() < challenge.readyAt) return "That faction is still gathering.";
+  }
 
   private applyCapture(territoryId: string, factionId: string) {
     const formerOwner = this.ownership.get(territoryId);
