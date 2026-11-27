@@ -198,122 +198,126 @@ function App() {
   }
 
   return (
-    <main>
-      <header>
-        <h1>Territories Game</h1>
-        <p role="status">Connected to the world as {displayName}.</p>
-      </header>
-      <div className="world">
-        <section aria-labelledby="map-heading">
-          <h2 id="map-heading">World map</h2>
-          <svg
-            className="map"
-            viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
-            role="img"
-            aria-label={worldMap.territories.map(({ name }) => name).join(", ")}
-          >
-            {worldMap.territories.map(({ id, path }) => (
-              <path key={id} className="territory-shape" d={path} fillRule="evenodd" />
+    <main className="world-screen">
+      <section className="world" aria-label="World map">
+        <svg
+          className="map"
+          viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
+          role="img"
+          aria-label={worldMap.territories.map(({ name }) => name).join(", ")}
+        >
+          {worldMap.territories.map(({ id, path }) => (
+            <path key={id} className="territory-shape" d={path} fillRule="evenodd" />
+          ))}
+          <g className="map-relief" aria-hidden="true">
+            {worldMap.reliefPaths.map((path, index) => (
+              <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
             ))}
-            <g className="map-relief" aria-hidden="true">
-              {worldMap.reliefPaths.map((path, index) => (
-                <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
-              ))}
-            </g>
-            <path className="map-borders" d={worldMap.borders} aria-hidden="true" />
-            {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
-              <text
-                key={id}
-                x={Math.max(13, Math.min(worldMap.width - 13, x))}
-                y={Math.max(6, Math.min(worldMap.height - 3, y))}
-                textAnchor="middle"
-              >
-                {name}
-              </text>
-            ))}
-          </svg>
-          <ul className="territory-activity" aria-label="Territory activity">
-            {worldMap.territories.map(({ id, name }) => {
-              const owner = factions.find(({ id: factionId }) => factionId === activity?.owners[id]);
-              const challenges = activity?.challenges.filter(({ territoryId }) => territoryId === id) ?? [];
-              return (
-                <li key={id}>
-                  <strong>{name}</strong>
-                  <span>{owner ? `Held by ${owner.name}` : "Unclaimed"}</span>
-                  {challenges.length > 0 && (
-                    <ul>
-                      {challenges.map(({ challengerFactionId, readyAt }) => {
-                        const faction = factions.find(({ id }) => id === challengerFactionId);
-                        const seconds = Math.ceil((readyAt - serverNow) / 1000);
-                        return (
-                          <li key={challengerFactionId}>
-                            <span>{faction?.name ?? "Attacking faction"}</span>
-                            <span>{seconds > 0 ? `Gathering · ${seconds}s` : "Ready to enter"}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-        <aside aria-labelledby="factions-heading">
-          <h2 id="factions-heading">Factions</h2>
-          {founded ? (
-            <>
-              <p role="status">You founded <strong>{founded.name}</strong>.</p>
-              <form onSubmit={actOnTerritory}>
-                <fieldset disabled={!room || !activity || isSubmitting}>
+          </g>
+          <path className="map-borders" d={worldMap.borders} aria-hidden="true" />
+          {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
+            <text
+              key={id}
+              x={Math.max(13, Math.min(worldMap.width - 13, x))}
+              y={Math.max(6, Math.min(worldMap.height - 3, y))}
+              textAnchor="middle"
+            >
+              {name}
+            </text>
+          ))}
+        </svg>
+        <header className="world-identity">
+          <h1>Territories Game</h1>
+          <p role="status">Connected to the world as {displayName}.</p>
+        </header>
+        <details className="world-overlay world-activity" name="world-controls">
+          <summary>Territories</summary>
+          <div className="overlay-content">
+            <ul className="territory-activity" aria-label="Territory activity">
+              {worldMap.territories.map(({ id, name }) => {
+                const owner = factions.find(({ id: factionId }) => factionId === activity?.owners[id]);
+                const challenges = activity?.challenges.filter(({ territoryId }) => territoryId === id) ?? [];
+                return (
+                  <li key={id}>
+                    <strong>{name}</strong>
+                    <span>{owner ? `Held by ${owner.name}` : "Unclaimed"}</span>
+                    {challenges.length > 0 && (
+                      <ul>
+                        {challenges.map(({ challengerFactionId, readyAt }) => {
+                          const faction = factions.find(({ id }) => id === challengerFactionId);
+                          const seconds = Math.ceil((readyAt - serverNow) / 1000);
+                          return (
+                            <li key={challengerFactionId}>
+                              <span>{faction?.name ?? "Attacking faction"}</span>
+                              <span>{seconds > 0 ? `Gathering · ${seconds}s` : "Ready to enter"}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </details>
+        <details className="world-overlay world-factions" name="world-controls">
+          <summary>Factions</summary>
+          <div className="overlay-content">
+            {founded ? (
+              <>
+                <p role="status">You founded <strong>{founded.name}</strong>.</p>
+                <form onSubmit={actOnTerritory}>
+                  <fieldset disabled={!room || !activity || isSubmitting}>
+                    <label>
+                      Territory
+                      <select name="territory" required value={territoryId} onChange={(event) => {
+                        setTerritoryId(event.target.value);
+                        setError("");
+                      }}>
+                        <option value="" disabled>Choose a territory</option>
+                        {worldMap.territories.map(({ id, name }) => (
+                          <option key={id} value={id}>{name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="submit" disabled={isGathering}>
+                      {isGathering ? "Gathering…" : canEnter ? "Enter arena" : "Start challenge"}
+                    </button>
+                  </fieldset>
+                </form>
+              </>
+            ) : (
+              <form onSubmit={createFaction}>
+                <fieldset disabled={!room || isSubmitting}>
                   <label>
-                    Territory
-                    <select name="territory" required value={territoryId} onChange={(event) => {
-                      setTerritoryId(event.target.value);
-                      setError("");
-                    }}>
-                      <option value="" disabled>Choose a territory</option>
-                      {worldMap.territories.map(({ id, name }) => (
-                        <option key={id} value={id}>{name}</option>
-                      ))}
-                    </select>
+                    Faction name
+                    <input name="name" required maxLength={40} />
                   </label>
-                  <button type="submit" disabled={isGathering}>
-                    {isGathering ? "Gathering…" : canEnter ? "Enter arena" : "Start challenge"}
-                  </button>
+                  <label>
+                    Faction color
+                    <input name="color" type="color" defaultValue="#369b72" />
+                  </label>
+                  <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
                 </fieldset>
               </form>
-            </>
-          ) : (
-            <form onSubmit={createFaction}>
-              <fieldset disabled={!room || isSubmitting}>
-                <label>
-                  Faction name
-                  <input name="name" required maxLength={40} />
-                </label>
-                <label>
-                  Faction color
-                  <input name="color" type="color" defaultValue="#369b72" />
-                </label>
-                <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
-              </fieldset>
-            </form>
-          )}
-          {error && <p role="alert">{error}</p>}
-          <div className="faction-list" aria-live="polite">
-            {factions.length === 0 ? <p>No factions yet.</p> : (
-              <ul aria-label="Founded factions">
-                {factions.map(({ id, name, color }) => (
-                  <li key={id}>
-                    <span className="swatch" style={{ backgroundColor: color }} aria-hidden="true" />
-                    {name}
-                  </li>
-                ))}
-              </ul>
             )}
+            {error && <p role="alert">{error}</p>}
+            <div className="faction-list" aria-live="polite">
+              {factions.length === 0 ? <p>No factions yet.</p> : (
+                <ul aria-label="Founded factions">
+                  {factions.map(({ id, name, color }) => (
+                    <li key={id}>
+                      <span className="swatch" style={{ backgroundColor: color }} aria-hidden="true" />
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </aside>
-      </div>
+        </details>
+      </section>
     </main>
   );
 }

@@ -30,17 +30,65 @@ header p, .faction-list > p { color: #b7c7b9; }
   color: #e8eddf;
 }
 
-.world {
+.world-screen {
+  max-width: none;
+  min-height: 100dvh;
+  padding: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
-  gap: clamp(1rem, 4vw, 3rem);
-  margin-top: 1.5rem;
+  place-items: center;
 }
+
+.world {
+  --map-size: min(100vw, 100dvh);
+  --corner-inset: clamp(0.5rem, 2vw, 1rem);
+  position: relative;
+  width: var(--map-size);
+  height: var(--map-size);
+}
+
+.world-identity,
+.world-overlay {
+  position: absolute;
+  background: #172627;
+  border: 1px solid #617d75;
+}
+
+.world-identity {
+  top: var(--corner-inset);
+  left: var(--corner-inset);
+  max-width: calc(100% - 8rem);
+  padding: 0.55rem 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.world-identity h1 { font-size: clamp(1rem, 3.5vw, 1.5rem); }
+.world-identity p { font-size: 0.8rem; margin-top: 0.2rem; }
+.world-overlay { z-index: 1; }
+.world-overlay[open] { width: min(19rem, calc(100% - 2 * var(--corner-inset))); }
+.world-overlay summary {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+.world-overlay[open] summary { border-bottom: 1px solid #53655b; }
+.world-activity { left: var(--corner-inset); bottom: var(--corner-inset); }
+.world-factions { top: var(--corner-inset); right: var(--corner-inset); }
+.overlay-content {
+  max-height: calc(var(--map-size) - 2 * var(--corner-inset) - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.overlay-content > p:first-child, .overlay-content > .territory-activity { margin-top: 0; }
+.overlay-content > .territory-activity { margin-bottom: 0; }
+.overlay-content > p + form { margin-top: 0.75rem; }
 
 .map {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   border: 1px solid #617d75;
   background: #163f49;
 }
@@ -102,7 +150,3 @@ button:disabled { opacity: 0.65; }
 .territory-activity > li > span { margin-inline-start: 0.6rem; color: #b7c7b9; }
 .territory-activity ul li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem 0.75rem; padding-top: 0.4rem; overflow-wrap: anywhere; }
 .swatch { width: 1rem; height: 1rem; flex: 0 0 auto; border: 1px solid #a0ae9a; }
-
-@media (max-width: 45rem) {
-  .world { grid-template-columns: minmax(0, 1fr); }
-}
