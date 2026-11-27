@@ -30,16 +30,30 @@ header p, .faction-list > p { color: #b7c7b9; }
   background: #163f49;
 }
 
-.map polygon {
+.map .territory-shape {
   fill: #acb58a;
+}
+
+.map-relief {
+  fill: #f3f0c7;
+  pointer-events: none;
+}
+
+.map-borders {
+  fill: none;
   stroke: #314e3e;
-  stroke-width: 3;
+  stroke-width: 0.45;
   stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .map text {
   fill: #172c24;
-  font: bold 28px Georgia, serif;
+  font: bold 4.5px Georgia, serif;
+  paint-order: stroke;
+  stroke: #e3e9c8;
+  stroke-width: 0.35;
+  stroke-linejoin: round;
 }
 
 .arena-canvas {

@@ -162,11 +162,24 @@ function App() {
             role="img"
             aria-label={worldMap.territories.map(({ name }) => name).join(", ")}
           >
-            {worldMap.territories.map(({ id, name, outline, seed: [x, y] }) => (
-              <g key={id}>
-                <polygon points={outline.map(([x, y]) => `${x},${y}`).join(" ")} />
-                <text x={x} y={y} textAnchor="middle">{name}</text>
-              </g>
+            {worldMap.territories.map(({ id, path }) => (
+              <path key={id} className="territory-shape" d={path} fillRule="evenodd" />
+            ))}
+            <g className="map-relief" aria-hidden="true">
+              {worldMap.reliefPaths.map((path, index) => (
+                <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
+              ))}
+            </g>
+            <path className="map-borders" d={worldMap.borders} aria-hidden="true" />
+            {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
+              <text
+                key={id}
+                x={Math.max(13, Math.min(worldMap.width - 13, x))}
+                y={Math.max(6, Math.min(worldMap.height - 3, y))}
+                textAnchor="middle"
+              >
+                {name}
+              </text>
             ))}
           </svg>
           <ul className="territory-activity" aria-label="Territory activity">
