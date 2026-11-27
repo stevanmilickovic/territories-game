@@ -1,4 +1,4 @@
-import { Client, type Room, type SeatReservation } from "@colyseus/sdk";
+import { Client, ErrorCode, type Room, type SeatReservation } from "@colyseus/sdk";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { ArenaState } from "../../shared/src/arena-schema";
@@ -11,7 +11,9 @@ const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.
 const ArenaView = lazy(() => import("./ArenaView"));
 
 function App() {
-  const [status, setStatus] = useState("Connecting to the world…");
+  const [joinRequest, setJoinRequest] = useState<{ username?: string } | null>(null);
+  const [joinError, setJoinError] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [room, setRoom] = useState<Room | null>(null);
   const [factions, setFactions] = useState<Faction[]>([]);
   const [founded, setFounded] = useState<Faction | null>(null);
@@ -24,14 +26,17 @@ function App() {
   const [territoryId, setTerritoryId] = useState("");
 
   useEffect(() => {
+    if (!joinRequest) return;
     let active = true;
-    const connection = client.joinOrCreate("world");
+    const connection = client.joinOrCreate("world", joinRequest);
 
     void connection.then(
       (room) => {
         if (!active) return;
         room.onMessage("displayName", (displayName: string) => {
-          if (active) setStatus(`Connected to the world as ${displayName}.`);
+          if (!active) return;
+          setDisplayName(displayName);
+          setRoom(room);
         });
         room.onMessage("factions", (factions: Faction[]) => {
           if (active) setFactions(factions);
@@ -46,12 +51,21 @@ function App() {
         room.onLeave(() => {
           if (!active) return;
           setRoom(null);
-          setStatus("Disconnected. Reload to rejoin.");
+          setArena(null);
+          setFactions([]);
+          setFounded(null);
+          setActivity(null);
+          setTerritoryId("");
+          setError("");
+          setJoinError("Disconnected from the world. Join again to continue.");
+          setJoinRequest(null);
         });
-        setRoom(room);
       },
-      () => {
-        if (active) setStatus("Could not connect. Reload to try again.");
+      (error: unknown) => {
+        if (!active) return;
+        const invalidName = error instanceof Error && "code" in error && error.code === ErrorCode.AUTH_FAILED;
+        setJoinError(invalidName ? error.message : "Could not connect to the world. Try again.");
+        setJoinRequest(null);
       },
     );
 
@@ -59,7 +73,7 @@ function App() {
       active = false;
       void connection.then((room) => room.leave()).catch(() => {});
     };
-  }, []);
+  }, [joinRequest]);
 
   useEffect(() => {
     if (!room) return;
@@ -81,6 +95,18 @@ function App() {
   const isOwner = Boolean(founded && activity?.owners[territoryId] === founded.id);
   const isGathering = !isOwner && Boolean(ownChallenge && ownChallenge.readyAt > serverNow);
   const canEnter = isOwner || Boolean(ownChallenge && !isGathering);
+
+  function joinWorld(username?: string) {
+    if (joinRequest) return;
+    setJoinError("");
+    setJoinRequest(username === undefined ? {} : { username });
+  }
+
+  function joinWithUsername(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const username = new FormData(event.currentTarget).get("username");
+    if (typeof username === "string") joinWorld(username);
+  }
 
   async function createFaction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,6 +157,30 @@ function App() {
     }
   }
 
+  if (!room) {
+    return (
+      <main className="entry">
+        <h1>Territories Game</h1>
+        <div className="entry-options">
+          <form onSubmit={joinWithUsername}>
+            <fieldset disabled={Boolean(joinRequest)}>
+              <label>
+                Choose a username
+                <input name="username" autoComplete="nickname" autoCapitalize="none" required />
+              </label>
+              <button type="submit">Join with username</button>
+            </fieldset>
+          </form>
+          <button className="guest-button" type="button" disabled={Boolean(joinRequest)} onClick={() => joinWorld()}>
+            Play as guest
+          </button>
+        </div>
+        {joinRequest && <p role="status">Connecting to the world…</p>}
+        {joinError && <p role="alert">{joinError}</p>}
+      </main>
+    );
+  }
+
   if (arena) {
     return (
       <main>
@@ -151,7 +201,7 @@ function App() {
     <main>
       <header>
         <h1>Territories Game</h1>
-        <p role="status">{status}</p>
+        <p role="status">Connected to the world as {displayName}.</p>
       </header>
       <div className="world">
         <section aria-labelledby="map-heading">

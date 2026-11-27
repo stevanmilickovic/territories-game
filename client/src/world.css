@@ -15,6 +15,21 @@ h2 { font-size: 1.5rem; margin-bottom: 0.85rem; }
 p { margin: 0.45rem 0 0; }
 header p, .faction-list > p { color: #b7c7b9; }
 
+.entry {
+  max-width: 34rem;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.entry-options { display: grid; gap: 1rem; }
+.entry-options .guest-button {
+  background: transparent;
+  color: #e8eddf;
+}
+
 .world {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
