@@ -1,6 +1,6 @@
 import type { Heightmap } from "./heightmap.ts";
 
-export type IslandHeightmap = Heightmap & {
+export type ContinentalHeightmap = Heightmap & {
   // 1 for playable land and 0 for water, in the same order as elevations.
   land: Uint8Array;
   seaLevel: number;
@@ -19,8 +19,13 @@ function largestLandComponent(land: Uint8Array, width: number): Uint32Array {
     let length = 1;
     for (let head = 0; head < length; head++) {
       const index = queue[head];
-      // The ocean rim keeps every land index away from the grid edges.
-      for (const neighbor of [index - 1, index + 1, index - width, index + width]) {
+      const x = index % width;
+      for (const neighbor of [
+        x > 0 ? index - 1 : -1,
+        x < width - 1 ? index + 1 : -1,
+        index - width,
+        index + width,
+      ]) {
         if (!land[neighbor] || visited[neighbor]) continue;
         visited[neighbor] = 1;
         queue[length++] = neighbor;
@@ -31,37 +36,21 @@ function largestLandComponent(land: Uint8Array, width: number): Uint32Array {
   return largest;
 }
 
-export function shapeIsland(heightmap: Heightmap, seaLevel: number): IslandHeightmap {
+export function shapeContinent(heightmap: Heightmap, seaLevel: number): ContinentalHeightmap {
   const { width, height, elevations: source } = heightmap;
-  if (!Number.isInteger(width) || width < 3 || !Number.isInteger(height) || height < 3
+  if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1
     || source.length !== width * height) {
-    throw new RangeError("The island needs a heightmap with room for an ocean rim.");
+    throw new RangeError("Heightmap dimensions must match the elevation grid.");
   }
   if (!Number.isFinite(seaLevel) || seaLevel <= 0 || seaLevel >= 1) {
     throw new RangeError("Sea level must be between zero and one.");
   }
 
-  const elevations = new Float32Array(source.length);
-  const land = new Uint8Array(source.length);
-  const falloffStart = 0.35;
-  const falloffEnd = 0.92;
-
-  for (let y = 0; y < height; y++) {
-    const normalizedY = (2 * y) / (height - 1) - 1;
-    for (let x = 0; x < width; x++) {
-      const normalizedX = (2 * x) / (width - 1) - 1;
-      const radius = Math.hypot(normalizedX, normalizedY);
-      const falloff = Math.max(0, Math.min(1, (radius - falloffStart) / (falloffEnd - falloffStart)));
-      const attenuation = 1 - falloff * falloff * (3 - 2 * falloff);
-      const index = y * width + x;
-      elevations[index] = source[index] * attenuation;
-      land[index] = Number(elevations[index] > seaLevel);
-    }
-  }
-
+  const land = Uint8Array.from(source, (elevation) => Number(elevation > seaLevel));
   const mainland = largestLandComponent(land, width);
   if (mainland.length === 0) throw new RangeError("Sea level leaves no land on this heightmap.");
 
+  const elevations = source.slice();
   land.fill(0);
   for (const index of mainland) land[index] = 1;
   for (let index = 0; index < elevations.length; index++) {

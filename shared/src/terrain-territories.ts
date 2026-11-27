@@ -1,4 +1,4 @@
-import type { IslandHeightmap } from "./island.ts";
+import type { ContinentalHeightmap } from "./continent.ts";
 import { MinQueue } from "./min-queue.ts";
 import { assignFlatTerritories, type TerritoryCenter } from "./territory-centers.ts";
 
@@ -11,8 +11,8 @@ type TerrainBorderSettings = {
 type LandLink = { to: number; dx: number; dy: number; length: number; cost: number };
 type LandLinks = LandLink[][];
 
-function smoothLand(island: IslandHeightmap, radius: number): Float64Array {
-  const { width, height, land, elevations } = island;
+function smoothLand(continent: ContinentalHeightmap, radius: number): Float64Array {
+  const { width, height, land, elevations } = continent;
   const smooth = new Float64Array(land.length);
   for (let index = 0; index < land.length; index++) {
     if (!land[index]) continue;
@@ -33,7 +33,7 @@ function smoothLand(island: IslandHeightmap, radius: number): Float64Array {
   return smooth;
 }
 
-function buildLandLinks({ width, height, land }: IslandHeightmap): LandLinks {
+function buildLandLinks({ width, height, land }: ContinentalHeightmap): LandLinks {
   const links: LandLinks = Array.from(land, () => []);
   const directions = [[1, 0], [0, 1], [1, 1], [-1, 1]];
   for (let index = 0; index < land.length; index++) {
@@ -62,14 +62,14 @@ function traceDrainage(land: Uint8Array, links: LandLinks, elevations: Float64Ar
   for (let index = 0; index < land.length; index++) {
     if (!land[index]) continue;
     landCount++;
-    // Fewer than four cardinal links means this cell can drain into water.
+    // Fewer than four cardinal links means drainage can leave through water or the map edge.
     if (links[index].filter(({ length }) => length === 1).length < 4) {
       flow[index] = 1;
       queue.push(index, elevations[index]);
     }
   }
 
-  // Flood inward from water. Even a depression gets a route through its lowest outlet.
+  // Flood inward from outlets so depressions get a drainage route too.
   for (let outlet = queue.pop(); outlet; outlet = queue.pop()) {
     order.push(outlet.index);
     for (const { to } of links[outlet.index]) {
@@ -87,10 +87,10 @@ function traceDrainage(land: Uint8Array, links: LandLinks, elevations: Float64Ar
   return { downstream, flow, channelThreshold: Math.max(6, landCount * 0.008) };
 }
 
-function applyTerrainCosts(island: IslandHeightmap, links: LandLinks, settings: TerrainBorderSettings) {
-  const { width, height, land } = island;
+function applyTerrainCosts(continent: ContinentalHeightmap, links: LandLinks, settings: TerrainBorderSettings) {
+  const { width, height, land } = continent;
   const { ridgeInfluence, drainageInfluence, smoothingRadius } = settings;
-  const elevations = smoothLand(island, smoothingRadius);
+  const elevations = smoothLand(continent, smoothingRadius);
   const drainage = drainageInfluence > 0 ? traceDrainage(land, links, elevations) : null;
   const shoulderDistance = Math.max(2, smoothingRadius + 1);
 
@@ -131,7 +131,7 @@ function applyTerrainCosts(island: IslandHeightmap, links: LandLinks, settings: 
 }
 
 export function assignTerrainTerritories(
-  island: IslandHeightmap,
+  continent: ContinentalHeightmap,
   centers: readonly TerritoryCenter[],
   settings: TerrainBorderSettings,
 ): Uint32Array {
@@ -142,7 +142,7 @@ export function assignTerrainTerritories(
     throw new RangeError("Terrain border influences and smoothing radius must be nonnegative.");
   }
 
-  const { width, height, land } = island;
+  const { width, height, land } = continent;
   const origins = centers.map(({ x, y, strength }) => {
     const index = y * width + x;
     if (!Number.isInteger(x) || x < 0 || x >= width || !Number.isInteger(y) || y < 0 || y >= height
@@ -154,10 +154,10 @@ export function assignTerrainTerritories(
   if (origins.length === 0 || new Set(origins).size !== origins.length) {
     throw new RangeError("Terrain assignment needs distinct territory centers.");
   }
-  if (ridgeInfluence === 0 && drainageInfluence === 0) return assignFlatTerritories(island, centers);
+  if (ridgeInfluence === 0 && drainageInfluence === 0) return assignFlatTerritories(continent, centers);
 
-  const links = buildLandLinks(island);
-  applyTerrainCosts(island, links, settings);
+  const links = buildLandLinks(continent);
+  applyTerrainCosts(continent, links, settings);
   const best = new Float64Array(land.length).fill(Infinity);
   const labels = new Uint32Array(land.length);
   const distances = new Float64Array(land.length);

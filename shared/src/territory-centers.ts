@@ -1,7 +1,7 @@
-import type { IslandHeightmap } from "./island.ts";
+import type { ContinentalHeightmap } from "./continent.ts";
 import { seededRandom } from "./seeded-random.ts";
 
-type LandGrid = Pick<IslandHeightmap, "width" | "height" | "land">;
+type LandGrid = Pick<ContinentalHeightmap, "width" | "height" | "land">;
 
 export type TerritoryCenter = { x: number; y: number; strength: number };
 
