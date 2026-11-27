@@ -1,4 +1,4 @@
-export const arenaLayout = { width: 800, height: 480, edgeInset: 32 };
+export const arenaLayout = { width: 2400, height: 1440, edgeInset: 32 };
 export const arenaTickRate = 30;
 export const arenaPlayerRadius = 9;
 export const arenaMaxHealth = 100;
