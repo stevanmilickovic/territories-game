@@ -1,10 +1,10 @@
 import { ErrorCode, Room, ServerError, type Client } from "colyseus";
 import {
-  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPlayerRadius,
+  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
   arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena.ts";
-import { ArenaInput, ArenaPlayer, ArenaProjectile, ArenaState } from "../../shared/src/arena-schema.ts";
+import { ArenaGroundItem, ArenaInput, ArenaPlayer, ArenaProjectile, ArenaState } from "../../shared/src/arena-schema.ts";
 
 type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
@@ -55,9 +55,44 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   private readonly nextShotTick = new Map<string, number>();
   private readonly pendingRespawns = new Map<string, number>();
   private nextLife = 1;
+  private nextGroundItemId = 1;
   onArenaEmpty?: () => void;
   getEntryError?: (guestSessionId: string, factionId: string) => string | undefined;
   onTerritoryCaptured?: (factionId: string) => void;
+
+  messages = {
+    dropWeapon: (client: ArenaClient, life: unknown) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.health === 0 || player.life !== life) return false;
+      return this.dropEquippedWeapon(player);
+    },
+
+    pickUpWeapon: (client: ArenaClient, payload: unknown) => {
+      if (typeof payload !== "object" || payload === null || !("itemId" in payload)
+        || typeof payload.itemId !== "string" || !("life" in payload)) return false;
+
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.health === 0 || player.life !== payload.life || player.equippedWeaponId) return false;
+
+      const item = this.state.groundItems.get(payload.itemId);
+      if (!item || Math.hypot(player.x - item.x, player.y - item.y) > arenaPickupRadius) return false;
+
+      this.state.groundItems.delete(payload.itemId);
+      player.equippedWeaponId = item.weaponId;
+      return true;
+    },
+  };
+
+  private dropEquippedWeapon(player: InstanceType<typeof ArenaPlayer>) {
+    const { equippedWeaponId, x, y } = player;
+    if (!equippedWeaponId) return false;
+
+    this.state.groundItems.set(String(this.nextGroundItemId++), new ArenaGroundItem({
+      weaponId: equippedWeaponId, x, y,
+    }));
+    player.equippedWeaponId = "";
+    return true;
+  }
 
   static override async onAuth() {
     // Arena seats are issued by the world room after checking faction eligibility.
@@ -190,7 +225,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
       if (hit) {
         hit.health = Math.max(0, hit.health - arenaWeapon.damage);
         if (hit.health === 0) {
-          hit.equippedWeaponId = "";
+          this.dropEquippedWeapon(hit);
           hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
         }
       }
@@ -247,6 +282,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     if (player && this.state.players.size === 0) {
       this.projectiles = [];
       this.state.projectiles.clear();
+      this.state.groundItems.clear();
       this.edgeSpawns.clear();
       this.state.captureFactionId = "";
       this.state.captureTicks = 0;

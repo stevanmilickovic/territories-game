@@ -1,6 +1,7 @@
 export const arenaLayout = { width: 2400, height: 1440, edgeInset: 32 };
 export const arenaTickRate = 30;
 export const arenaPlayerRadius = 9;
+export const arenaPickupRadius = 32;
 export const arenaMaxHealth = 100;
 export const arenaRespawnDelayMs = 5000;
 export const arenaCaptureRadius = 24;
