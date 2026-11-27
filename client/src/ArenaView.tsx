@@ -10,6 +10,7 @@ import {
 import type { Faction } from "../../shared/src/factions.ts";
 
 const { width, height } = arenaLayout;
+const viewportSize = 480;
 const playerInterpolation = {
   x: "lerp",
   y: "lerp",
@@ -50,6 +51,7 @@ export default function ArenaView({ room, factions }: {
       private tracers: { from: ArenaPoint; to: ArenaPoint; expiresAt: number }[] = [];
 
       create() {
+        this.cameras.main.setBounds(0, 0, width, height);
         const floor = this.add.graphics();
         floor.lineStyle(1, 0x41584d);
         for (let x = 32; x < width; x += 32) floor.lineBetween(x, 0, x, height);
@@ -57,10 +59,10 @@ export default function ArenaView({ room, factions }: {
         floor.lineStyle(2, 0xaabc95).strokeCircle(width / 2, height / 2, arenaCaptureRadius);
         this.markers = this.add.graphics();
         const hudStyle = { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" };
-        this.hud = this.add.text(12, 12, "", hudStyle).setDepth(2);
-        this.captureLabel = this.add.text(width - 12, 12, "", hudStyle).setOrigin(1, 0).setDepth(2);
-        this.add.rectangle(width - 172, 38, 160, 6, 0x41584d).setOrigin(0, 0);
-        this.captureBar = this.add.rectangle(width - 172, 38, 160, 6, 0xaabc95).setOrigin(0, 0);
+        this.hud = this.add.text(12, 12, "", hudStyle).setScrollFactor(0).setDepth(2);
+        this.captureLabel = this.add.text(viewportSize - 12, 12, "", hudStyle).setOrigin(1, 0).setScrollFactor(0).setDepth(2);
+        this.add.rectangle(viewportSize - 172, 38, 160, 6, 0x41584d).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
+        this.captureBar = this.add.rectangle(viewportSize - 172, 38, 160, 6, 0xaabc95).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (!pointer.leftButtonDown()) return;
           this.firePressed = true;
@@ -126,7 +128,7 @@ export default function ArenaView({ room, factions }: {
         this.captureBar.setFillStyle(faction ? Phaser.Display.Color.HexStringToColor(faction.color).color : 0xaabc95);
       }
 
-      update() {
+      update(_time: number, delta: number) {
         const players = room.state?.players;
         const localPlayer = players?.get(room.sessionId);
         if (!players || !localPlayer) return;
@@ -152,6 +154,7 @@ export default function ArenaView({ room, factions }: {
           this.trackingPlayers = true;
         }
 
+        let snapCamera = !this.playerLives.has(localPlayer);
         for (const [sessionId, player] of players) {
           const previousLife = this.playerLives.get(player);
           if (previousLife === player.life) continue;
@@ -159,6 +162,7 @@ export default function ArenaView({ room, factions }: {
           if (previousLife === undefined) continue;
           if (sessionId === room.sessionId) {
             this.resetLocalPrediction?.();
+            snapCamera = true;
             this.firePressed = false;
             this.shotCooldown = 0;
             this.hitUntil = 0;
@@ -170,13 +174,26 @@ export default function ArenaView({ room, factions }: {
 
         const now = performance.now();
         const steps = predict.tick(now);
-        const pointer = this.input.activePointer.updateWorldPoint(this.cameras.main);
+        const camera = this.cameras.main;
+        const halfViewport = viewportSize / 2;
+        const follow = snapCamera ? 1 : 1 - Math.exp(-delta / 90);
+        const targetX = Phaser.Math.Clamp(predict.value(localPlayer, "x") - halfViewport, 0, width - viewportSize);
+        const targetY = Phaser.Math.Clamp(predict.value(localPlayer, "y") - halfViewport, 0, height - viewportSize);
+        camera.setScroll(
+          Phaser.Math.Linear(camera.scrollX, targetX, follow),
+          Phaser.Math.Linear(camera.scrollY, targetY, follow),
+        );
+
+        const pointer = this.input.activePointer;
+        // The camera uses unit zoom and no rotation. Its render matrix still has the previous frame's scroll.
+        const aimX = Phaser.Math.Clamp(pointer.x + camera.scrollX, 0, width);
+        const aimY = Phaser.Math.Clamp(pointer.y + camera.scrollY, 0, height);
         let predictedShot = false;
         for (let step = 0; step < steps; step++) {
           input.data.moveX = Number(Boolean(this.keys?.right.isDown)) - Number(Boolean(this.keys?.left.isDown));
           input.data.moveY = Number(Boolean(this.keys?.down.isDown)) - Number(Boolean(this.keys?.up.isDown));
-          input.data.aimX = Phaser.Math.Clamp(pointer.worldX, 0, width);
-          input.data.aimY = Phaser.Math.Clamp(pointer.worldY, 0, height);
+          input.data.aimX = aimX;
+          input.data.aimY = aimY;
           input.data.fire = localPlayer.health > 0 && (this.firePressed || pointer.leftButtonDown());
           input.data.life = localPlayer.life;
           this.firePressed = false;
@@ -188,10 +205,16 @@ export default function ArenaView({ room, factions }: {
           input.send();
         }
 
+        const localX = predict.value(localPlayer, "x");
+        const localY = predict.value(localPlayer, "y");
+        const localAim = aimX === localX && aimY === localY
+          ? predict.value(localPlayer, "aim")
+          : Math.atan2(aimY - localY, aimX - localX);
+
         if (predictedShot) {
-          const x = predict.value(localPlayer, "x");
-          const y = predict.value(localPlayer, "y");
-          const aim = predict.value(localPlayer, "aim");
+          const x = localX;
+          const y = localY;
+          const aim = localAim;
           this.tracers.push({
             from: { x, y },
             to: { x: x + Math.cos(aim) * arenaWeapon.range, y: y + Math.sin(aim) * arenaWeapon.range },
@@ -229,7 +252,7 @@ export default function ArenaView({ room, factions }: {
           }
           const x = predict.value(player, "x");
           const y = predict.value(player, "y");
-          const aim = predict.value(player, "aim");
+          const aim = sessionId === room.sessionId ? localAim : predict.value(player, "aim");
           const color = Phaser.Display.Color.HexStringToColor(player.color).color;
           const outline = sessionId === room.sessionId ? 0xffffff : 0x131e1b;
           this.markers.lineStyle(2, color).lineBetween(
@@ -245,8 +268,8 @@ export default function ArenaView({ room, factions }: {
     const game = new Phaser.Game({
       type: Phaser.CANVAS,
       parent,
-      width,
-      height,
+      width: viewportSize,
+      height: viewportSize,
       backgroundColor: "#263c34",
       scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
       audio: { noAudio: true },

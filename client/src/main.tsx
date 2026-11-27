@@ -201,16 +201,20 @@ function App() {
 
   if (arena) {
     return (
-      <main>
-        <header>
-          <h1>{arena.territoryName} arena</h1>
-          <p role="status">You joined {arena.sideName}.</p>
+      <main className="arena-screen">
+        <header className="arena-header">
+          <div>
+            <h1>{arena.territoryName} arena</h1>
+            <p role="status">You joined {arena.sideName}.</p>
+          </div>
+          <button type="button" onClick={() => setArena(null)}>Return to world map</button>
+          <p className="arena-controls">Move with WASD. Aim with the mouse. Hold left click to fire.</p>
         </header>
-        <p><button type="button" onClick={() => setArena(null)}>Return to world map</button></p>
-        <p>Move with WASD. Aim with the mouse. Hold left click to fire.</p>
-        <Suspense fallback={<p role="status">Loading arena…</p>}>
-          <ArenaView room={arena.room} factions={factions} />
-        </Suspense>
+        <div className="arena-stage">
+          <Suspense fallback={<p role="status">Loading arena…</p>}>
+            <ArenaView room={arena.room} factions={factions} />
+          </Suspense>
+        </div>
       </main>
     );
   }
