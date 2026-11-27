@@ -13,6 +13,7 @@ const { width, height } = arenaLayout;
 const viewportSize = 480;
 const weaponSlot = new Phaser.Geom.Rectangle(viewportSize / 2 - 36, viewportSize - 52, 72, 40);
 const itemHitRadius = 10;
+const damageHealthBarMs = 1500;
 const playerInterpolation = {
   x: "lerp",
   y: "lerp",
@@ -54,6 +55,8 @@ export default function ArenaView({ room, factions }: {
       private firePressed = false;
       private shotCooldown = 0;
       private hitUntil = 0;
+      private previousHealth?: number;
+      private damageHealthBarUntil = 0;
       private readonly predictedProjectiles = new Map<number, {
         origin: ArenaPoint;
         aim: number;
@@ -221,6 +224,8 @@ export default function ArenaView({ room, factions }: {
             this.shotCooldown = 0;
             this.predictedProjectiles.clear();
             this.hitUntil = 0;
+            this.previousHealth = undefined;
+            this.damageHealthBarUntil = 0;
           } else {
             predict.detach(player);
             predict.attach(player, playerInterpolation);
@@ -287,10 +292,15 @@ export default function ArenaView({ room, factions }: {
           }
         }
 
-        const hitFeedback = now < this.hitUntil ? "   Hit" : "";
+        if (this.previousHealth !== undefined && localPlayer.health < this.previousHealth) {
+          this.damageHealthBarUntil = now + damageHealthBarMs;
+        }
+        this.previousHealth = localPlayer.health;
+
+        const hitFeedback = now < this.hitUntil ? "Hit" : "";
         const secondsToRespawn = Math.ceil((localPlayer.respawnAt - room.clock.serverNow()) / 1000);
         this.hud.setText(localPlayer.health > 0
-          ? `Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
+          ? hitFeedback
           : secondsToRespawn > 0 ? `Respawn in ${secondsToRespawn}s` : "Respawning…");
         this.markers.clear();
         for (const [sessionId, player] of players) {
@@ -326,6 +336,17 @@ export default function ArenaView({ room, factions }: {
           if (localPlayer.health > 0 && Math.hypot(x - localX, y - localY) <= arenaPickupRadius) {
             this.markers.lineStyle(1, 0xe8eddf, id === hoveredItemId ? 1 : 0.35).strokeRect(x - 10, y - 5, 20, 10);
           }
+        }
+
+        const hoveringPlayer = this.input.manager.isOver && !pointer.wasTouch && !dragging
+          && !weaponSlot.contains(pointer.x, pointer.y)
+          && Math.hypot(pointer.x + camera.scrollX - localX, pointer.y + camera.scrollY - localY) <= arenaPlayerRadius;
+        if (localPlayer.health > 0 && (hoveringPlayer || now < this.damageHealthBarUntil)) {
+          const barWidth = 28;
+          const x = localX - barWidth / 2;
+          const y = localY + arenaPlayerRadius + 4;
+          this.markers.fillStyle(0x172627).fillRect(x, y, barWidth, 5);
+          this.markers.fillStyle(0xb8cd9d).fillRect(x + 1, y + 1, (barWidth - 2) * localPlayer.health / arenaMaxHealth, 3);
         }
 
         this.markers.fillStyle(0xffefae);
