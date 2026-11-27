@@ -110,6 +110,12 @@ header p, .faction-list > p { color: #b7c7b9; }
   pointer-events: none;
 }
 
+.map-border-halo {
+  stroke: #e3e9c8;
+  stroke-width: 0.85;
+  opacity: 0.8;
+}
+
 .map text {
   fill: #172c24;
   font: bold 4.5px Georgia, serif;

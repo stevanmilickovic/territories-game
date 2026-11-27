@@ -197,6 +197,12 @@ function App() {
     );
   }
 
+  const factionsById = new Map(factions.map((faction) => [faction.id, faction]));
+  const territories = worldMap.territories.map((territory) => ({
+    ...territory,
+    owner: factionsById.get(activity?.owners[territory.id] ?? ""),
+  }));
+
   return (
     <main className="world-screen">
       <section className="world" aria-label="World map">
@@ -204,17 +210,20 @@ function App() {
           className="map"
           viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
           role="img"
-          aria-label={worldMap.territories.map(({ name }) => name).join(", ")}
+          aria-label={territories.map(({ name, owner }) => `${name}: ${owner?.name ?? "Unclaimed"}`).join(". ")}
         >
-          {worldMap.territories.map(({ id, path }) => (
-            <path key={id} className="territory-shape" d={path} fillRule="evenodd" />
+          {territories.map(({ id, path, owner }) => (
+            <path key={id} className="territory-shape" d={path} fillRule="evenodd" style={{ fill: owner?.color }} />
           ))}
           <g className="map-relief" aria-hidden="true">
             {worldMap.reliefPaths.map((path, index) => (
               <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
             ))}
           </g>
-          <path className="map-borders" d={worldMap.borders} aria-hidden="true" />
+          <g className="map-borders" aria-hidden="true">
+            <path className="map-border-halo" d={worldMap.borders} />
+            <path d={worldMap.borders} />
+          </g>
           {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
             <text
               key={id}
@@ -234,8 +243,7 @@ function App() {
           <summary>Territories</summary>
           <div className="overlay-content">
             <ul className="territory-activity" aria-label="Territory activity">
-              {worldMap.territories.map(({ id, name }) => {
-                const owner = factions.find(({ id: factionId }) => factionId === activity?.owners[id]);
+              {territories.map(({ id, name, owner }) => {
                 const challenges = activity?.challenges.filter(({ territoryId }) => territoryId === id) ?? [];
                 return (
                   <li key={id}>
@@ -244,7 +252,7 @@ function App() {
                     {challenges.length > 0 && (
                       <ul>
                         {challenges.map(({ challengerFactionId, readyAt }) => {
-                          const faction = factions.find(({ id }) => id === challengerFactionId);
+                          const faction = factionsById.get(challengerFactionId);
                           const seconds = Math.ceil((readyAt - serverNow) / 1000);
                           return (
                             <li key={challengerFactionId}>
