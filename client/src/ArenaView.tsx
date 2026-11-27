@@ -3,7 +3,7 @@ import Phaser from "phaser";
 import { useEffect, useRef } from "react";
 import { ArenaInput, type ArenaState } from "../../shared/src/arena-schema";
 import {
-  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPlayerRadius,
+  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
   arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena";
@@ -11,6 +11,8 @@ import type { Faction } from "../../shared/src/factions.ts";
 
 const { width, height } = arenaLayout;
 const viewportSize = 480;
+const weaponSlot = new Phaser.Geom.Rectangle(viewportSize / 2 - 36, viewportSize - 52, 72, 40);
+const itemHitRadius = 10;
 const playerInterpolation = {
   x: "lerp",
   y: "lerp",
@@ -37,6 +39,9 @@ export default function ArenaView({ room, factions }: {
 
     class ArenaScene extends Phaser.Scene {
       private markers!: Phaser.GameObjects.Graphics;
+      private slotLabel!: Phaser.GameObjects.Text;
+      private itemPress = false;
+      private draggingWeaponLife?: number;
       private hud!: Phaser.GameObjects.Text;
       private ownerLabel!: Phaser.GameObjects.Text;
       private captureLabel!: Phaser.GameObjects.Text;
@@ -69,8 +74,41 @@ export default function ArenaView({ room, factions }: {
         this.captureLabel = this.add.text(viewportSize - 12, 32, "", hudStyle).setOrigin(1, 0).setScrollFactor(0).setDepth(2);
         this.add.rectangle(viewportSize - 172, 52, 160, 6, 0x41584d).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
         this.captureBar = this.add.rectangle(viewportSize - 172, 52, 160, 6, 0xaabc95).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
+        this.add.rectangle(weaponSlot.centerX, weaponSlot.centerY, weaponSlot.width, weaponSlot.height, 0x172627)
+          .setStrokeStyle(1, 0xaabc95).setScrollFactor(0).setDepth(3);
+        this.slotLabel = this.add.text(weaponSlot.centerX, weaponSlot.centerY, "Empty", hudStyle)
+          .setOrigin(0.5).setScrollFactor(0).setDepth(4);
+
+        const releaseItem = (pointer: Phaser.Input.Pointer) => {
+          if (pointer.button !== 0) return;
+          const life = this.draggingWeaponLife;
+          this.draggingWeaponLife = undefined;
+          this.itemPress = false;
+          if (life !== undefined && !weaponSlot.contains(pointer.x, pointer.y)) {
+            room.send("dropWeapon", life);
+          }
+        };
+        this.input.on("pointerup", releaseItem);
+        this.input.on("pointerupoutside", releaseItem);
+        this.input.on("gameout", () => { this.game.canvas.style.cursor = ""; });
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.game.canvas.style.cursor = ""; });
+
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (!pointer.leftButtonDown()) return;
+          const player = room.state?.players.get(room.sessionId);
+          if (weaponSlot.contains(pointer.x, pointer.y)) {
+            this.itemPress = true;
+            if (player?.health && player.equippedWeaponId === arenaWeapon.id) {
+              this.draggingWeaponLife = player.life;
+            }
+            return;
+          }
+          const itemId = this.hoveredItem(pointer);
+          if (player && !player.equippedWeaponId && itemId !== undefined) {
+            this.itemPress = true;
+            room.send("pickUpWeapon", { itemId, life: player.life });
+            return;
+          }
           this.firePressed = true;
           if (typeof AudioContext !== "undefined") {
             audio ??= new AudioContext();
@@ -92,6 +130,24 @@ export default function ArenaView({ room, factions }: {
             right: keyboard.addKey("D"),
           };
         }
+      }
+
+      private hoveredItem(pointer: Phaser.Input.Pointer) {
+        const player = room.state?.players.get(room.sessionId);
+        if (!player?.health || weaponSlot.contains(pointer.x, pointer.y)) return;
+        const { scrollX, scrollY } = this.cameras.main;
+        const playerX = predict.value(player, "x");
+        const playerY = predict.value(player, "y");
+        let closest = itemHitRadius;
+        let hoveredId: string | undefined;
+        for (const [id, item] of room.state.groundItems) {
+          if (Math.hypot(item.x - playerX, item.y - playerY) > arenaPickupRadius) continue;
+          const distance = Math.hypot(item.x - pointer.x - scrollX, item.y - pointer.y - scrollY);
+          if (distance > closest) continue;
+          closest = distance;
+          hoveredId = id;
+        }
+        return hoveredId;
       }
 
       private renderName(sessionId: string, displayName: string, x: number, y: number) {
@@ -161,6 +217,7 @@ export default function ArenaView({ room, factions }: {
             this.resetLocalPrediction?.();
             snapCamera = true;
             this.firePressed = false;
+            this.draggingWeaponLife = undefined;
             this.shotCooldown = 0;
             this.predictedProjectiles.clear();
             this.hitUntil = 0;
@@ -193,7 +250,7 @@ export default function ArenaView({ room, factions }: {
           input.data.moveY = Number(Boolean(this.keys?.down.isDown)) - Number(Boolean(this.keys?.up.isDown));
           input.data.aimX = aimX;
           input.data.aimY = aimY;
-          input.data.fire = hasWeapon && localPlayer.health > 0 && (this.firePressed || pointer.leftButtonDown());
+          input.data.fire = hasWeapon && localPlayer.health > 0 && !this.itemPress && (this.firePressed || pointer.leftButtonDown());
           input.data.life = localPlayer.life;
           this.firePressed = false;
           this.shotCooldown = Math.max(0, this.shotCooldown - 1);
@@ -233,7 +290,7 @@ export default function ArenaView({ room, factions }: {
         const hitFeedback = now < this.hitUntil ? "   Hit" : "";
         const secondsToRespawn = Math.ceil((localPlayer.respawnAt - room.clock.serverNow()) / 1000);
         this.hud.setText(localPlayer.health > 0
-          ? `${hasWeapon ? arenaWeapon.name : "Unarmed"}   Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
+          ? `Health ${localPlayer.health}/${arenaMaxHealth}${hitFeedback}`
           : secondsToRespawn > 0 ? `Respawn in ${secondsToRespawn}s` : "Respawning…");
         this.markers.clear();
         for (const [sessionId, player] of players) {
@@ -252,6 +309,23 @@ export default function ArenaView({ room, factions }: {
           this.markers.fillStyle(color).fillCircle(x, y, arenaPlayerRadius);
           this.markers.lineStyle(2, outline).strokeCircle(x, y, arenaPlayerRadius);
           this.renderName(sessionId, player.displayName, x, y);
+        }
+
+        const hoveredItemId = this.hoveredItem(pointer);
+        const dragging = hasWeapon && this.draggingWeaponLife !== undefined;
+        this.slotLabel.setText(hasWeapon ? arenaWeapon.name : "Empty").setPosition(
+          dragging ? pointer.x : weaponSlot.centerX,
+          dragging ? pointer.y : weaponSlot.centerY,
+        );
+        this.game.canvas.style.cursor = dragging ? "grabbing"
+          : hasWeapon && weaponSlot.contains(pointer.x, pointer.y) ? "grab"
+            : !hasWeapon && hoveredItemId !== undefined ? "pointer" : "";
+        for (const [id, { x, y }] of room.state.groundItems) {
+          this.markers.fillStyle(0x172627).fillRect(x - 9, y - 4, 18, 8);
+          this.markers.fillStyle(0xb8cd9d).fillRect(x - 7, y - 2, 14, 4);
+          if (localPlayer.health > 0 && Math.hypot(x - localX, y - localY) <= arenaPickupRadius) {
+            this.markers.lineStyle(1, 0xe8eddf, id === hoveredItemId ? 1 : 0.35).strokeRect(x - 10, y - 5, 20, 10);
+          }
         }
 
         this.markers.fillStyle(0xffefae);

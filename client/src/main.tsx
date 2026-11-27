@@ -208,7 +208,7 @@ function App() {
             <p role="status">You joined {arena.sideName}.</p>
           </div>
           <button type="button" onClick={() => setArena(null)}>Return to world map</button>
-          <p className="arena-controls">Move with WASD. Aim with the mouse. Hold left click to fire.</p>
+          <p className="arena-controls">Move with WASD. Hold left click to fire. Drag your weapon out to drop it. Click a nearby weapon to pick it up.</p>
         </header>
         <div className="arena-stage">
           <Suspense fallback={<p role="status">Loading arena…</p>}>
