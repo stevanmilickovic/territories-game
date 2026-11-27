@@ -9,6 +9,7 @@ export const arenaWeapon = {
   name: "AK-47",
   damage: 25,
   shotIntervalTicks: 3,
+  projectileSpeed: 1200,
   range: Math.hypot(arenaLayout.width, arenaLayout.height),
 };
 

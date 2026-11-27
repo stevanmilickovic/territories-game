@@ -9,6 +9,16 @@ import { ArenaInput, ArenaPlayer, ArenaState } from "../../shared/src/arena-sche
 type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
 
+type Projectile = {
+  shooterId: string;
+  factionId: string;
+  origin: ArenaPoint;
+  position: ArenaPoint;
+  directionX: number;
+  directionY: number;
+  remainingDistance: number;
+};
+
 const { width, height, edgeInset } = arenaLayout;
 const centerSpawn: ArenaPoint = { x: width / 2, y: height / 2 };
 
@@ -40,6 +50,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     },
   });
   private readonly edgeSpawns = new Map<string, ArenaPoint>();
+  private projectiles: Projectile[] = [];
   private readonly nextShotTick = new Map<string, number>();
   private readonly pendingRespawns = new Map<string, number>();
   private nextLife = 1;
@@ -55,6 +66,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     await this.setPrivate();
     this.setFixedTimestep(({ dt, tick }) => {
       this.stepPlayers(dt, tick);
+      this.stepProjectiles(dt);
       this.stepCapture();
     }, arenaTickRate);
   }
@@ -121,43 +133,65 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
       const shooter = this.state.players.get(sessionId);
       if (!shooter || shooter.health === 0) continue;
       this.nextShotTick.set(sessionId, tick + arenaWeapon.shotIntervalTicks);
-      this.fireShot(sessionId, shooter);
+      this.spawnProjectile(sessionId, shooter);
     }
   }
 
-  private fireShot(shooterId: string, shooter: typeof ArenaPlayer.prototype) {
-    const directionX = Math.cos(shooter.aim);
-    const directionY = Math.sin(shooter.aim);
-    let distance = arenaWeapon.range;
-    let hit: typeof ArenaPlayer.prototype | undefined;
-
-    for (const target of this.state.players.values()) {
-      if (target.health === 0 || target.factionId === shooter.factionId) continue;
-      const dx = target.x - shooter.x;
-      const dy = target.y - shooter.y;
-      const forward = dx * directionX + dy * directionY;
-      const sideways = dx * directionY - dy * directionX;
-      const radiusSquared = arenaPlayerRadius ** 2;
-      if (sideways ** 2 > radiusSquared) continue;
-      const halfChord = Math.sqrt(radiusSquared - sideways ** 2);
-      if (forward + halfChord < 0) continue;
-      const contact = Math.max(0, forward - halfChord);
-      if (contact > distance || (hit && contact === distance)) continue;
-      distance = contact;
-      hit = target;
-    }
-
-    if (hit) {
-      hit.health = Math.max(0, hit.health - arenaWeapon.damage);
-      if (hit.health === 0) hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
-    }
-    const shot: ArenaShot = {
+  private spawnProjectile(shooterId: string, shooter: typeof ArenaPlayer.prototype) {
+    const { x, y, aim, factionId } = shooter;
+    const directionX = Math.cos(aim);
+    const directionY = Math.sin(aim);
+    const distanceToXEdge = directionX === 0 ? Infinity : ((directionX > 0 ? width : 0) - x) / directionX;
+    const distanceToYEdge = directionY === 0 ? Infinity : ((directionY > 0 ? height : 0) - y) / directionY;
+    this.projectiles.push({
       shooterId,
-      from: { x: shooter.x, y: shooter.y },
-      to: { x: shooter.x + directionX * distance, y: shooter.y + directionY * distance },
-      hit: Boolean(hit),
-    };
-    this.broadcast("arenaShot", shot);
+      factionId,
+      origin: { x, y },
+      position: { x, y },
+      directionX,
+      directionY,
+      remainingDistance: Math.min(arenaWeapon.range, distanceToXEdge, distanceToYEdge),
+    });
+  }
+
+  private stepProjectiles(dt: number) {
+    const travelDistance = arenaWeapon.projectileSpeed * dt;
+    this.projectiles = this.projectiles.filter((projectile) => {
+      const { shooterId, factionId, position, directionX, directionY, remainingDistance } = projectile;
+      let distance = Math.min(travelDistance, remainingDistance);
+      let hit: typeof ArenaPlayer.prototype | undefined;
+      const radiusSquared = arenaPlayerRadius ** 2;
+
+      for (const [sessionId, target] of this.state.players) {
+        if (sessionId === shooterId || target.health === 0 || target.factionId === factionId) continue;
+        const dx = target.x - position.x;
+        const dy = target.y - position.y;
+        const forward = dx * directionX + dy * directionY;
+        const sidewaysSquared = (dx * directionY - dy * directionX) ** 2;
+        if (sidewaysSquared > radiusSquared) continue;
+        const halfChord = Math.sqrt(radiusSquared - sidewaysSquared);
+        if (forward + halfChord < 0) continue;
+        const contact = Math.max(0, forward - halfChord);
+        if (contact > distance || (hit && contact === distance)) continue;
+        distance = contact;
+        hit = target;
+      }
+
+      const to = { x: position.x + directionX * distance, y: position.y + directionY * distance };
+      if (!hit && distance < remainingDistance) {
+        projectile.position = to;
+        projectile.remainingDistance -= distance;
+        return true;
+      }
+
+      if (hit) {
+        hit.health = Math.max(0, hit.health - arenaWeapon.damage);
+        if (hit.health === 0) hit.respawnAt = this.clock.elapsedTime + arenaRespawnDelayMs;
+      }
+      const shot: ArenaShot = { shooterId, from: projectile.origin, to, hit: Boolean(hit) };
+      this.broadcast("arenaShot", shot);
+      return false;
+    });
   }
 
   private getSpawn({ factionId }: ArenaMember): ArenaPoint {
