@@ -246,7 +246,7 @@ function App() {
           return (
             <li key={challengerFactionId}>
               <span>{faction?.name ?? "Attacking faction"}</span>
-              <span>{seconds > 0 ? `Gathering · ${seconds}s` : "Ready to enter"}</span>
+              <span>{seconds > 0 ? `Gathering to attack · ${seconds}s` : "Attacking"}</span>
             </li>
           );
         })}
@@ -272,7 +272,7 @@ function App() {
               style={{ fill: owner?.color }}
               role="button"
               tabIndex={0}
-              aria-label={`${name}, ${owner ? `held by ${owner.name}` : "unclaimed"}`}
+              aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}`}
               aria-pressed={id === territoryId}
               onClick={() => selectProvince(id)}
               onKeyDown={(event) => {
@@ -314,7 +314,7 @@ function App() {
               {territories.map(({ id, name, owner, challenges }) => (
                 <li key={id}>
                   <strong>{name}</strong>
-                  <span>{owner ? `Held by ${owner.name}` : "Unclaimed"}</span>
+                  <span>{owner ? `Owned by ${owner.name}` : "Unclaimed"}</span>
                   {renderChallenges(challenges)}
                 </li>
               ))}
@@ -365,7 +365,7 @@ function App() {
               </button>
             </div>
             <div className="overlay-content">
-              <p>{selectedProvince.owner ? `Held by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
+              <p>{selectedProvince.owner ? `Owned by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
               <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
               {renderChallenges(selectedProvince.challenges)}
               <div className="province-actions">

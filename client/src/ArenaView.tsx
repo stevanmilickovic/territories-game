@@ -38,6 +38,7 @@ export default function ArenaView({ room, factions }: {
     class ArenaScene extends Phaser.Scene {
       private markers!: Phaser.GameObjects.Graphics;
       private hud!: Phaser.GameObjects.Text;
+      private ownerLabel!: Phaser.GameObjects.Text;
       private captureLabel!: Phaser.GameObjects.Text;
       private captureBar!: Phaser.GameObjects.Rectangle;
       private keys?: Record<"up" | "down" | "left" | "right", Phaser.Input.Keyboard.Key>;
@@ -64,9 +65,10 @@ export default function ArenaView({ room, factions }: {
         this.markers = this.add.graphics();
         const hudStyle = { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" };
         this.hud = this.add.text(12, 12, "", hudStyle).setScrollFactor(0).setDepth(2);
-        this.captureLabel = this.add.text(viewportSize - 12, 12, "", hudStyle).setOrigin(1, 0).setScrollFactor(0).setDepth(2);
-        this.add.rectangle(viewportSize - 172, 38, 160, 6, 0x41584d).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
-        this.captureBar = this.add.rectangle(viewportSize - 172, 38, 160, 6, 0xaabc95).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
+        this.ownerLabel = this.add.text(viewportSize - 12, 12, "", hudStyle).setOrigin(1, 0).setScrollFactor(0).setDepth(2);
+        this.captureLabel = this.add.text(viewportSize - 12, 32, "", hudStyle).setOrigin(1, 0).setScrollFactor(0).setDepth(2);
+        this.add.rectangle(viewportSize - 172, 52, 160, 6, 0x41584d).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
+        this.captureBar = this.add.rectangle(viewportSize - 172, 52, 160, 6, 0xaabc95).setOrigin(0, 0).setScrollFactor(0).setDepth(2);
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
           if (!pointer.leftButtonDown()) return;
           this.firePressed = true;
@@ -114,17 +116,11 @@ export default function ArenaView({ room, factions }: {
       private renderCapture() {
         const { captureFactionId, captureTicks, captureContested, ownerFactionId } = room.state;
         const faction = currentFactions.current.find(({ id }) => id === captureFactionId);
-        const name = faction?.name ?? "A faction";
-        if (captureContested) {
-          this.captureLabel.setText("Center contested");
-        } else if (captureFactionId) {
-          this.captureLabel.setText(`${name} is capturing`);
-        } else if (ownerFactionId) {
-          const owner = currentFactions.current.find(({ id }) => id === ownerFactionId);
-          this.captureLabel.setText(owner ? `Held by ${owner.name}` : "Center captured");
-        } else {
-          this.captureLabel.setText("Capture point");
-        }
+        const owner = currentFactions.current.find(({ id }) => id === ownerFactionId);
+        this.ownerLabel.setText(owner ? `Owned by ${owner.name}` : ownerFactionId ? "Owned territory" : "Unclaimed territory");
+        this.captureLabel.setText(captureContested
+          ? "Capture paused · Center contested"
+          : captureFactionId ? `${faction?.name ?? "A faction"} is capturing` : "Capture point");
         this.captureBar.setScale(captureTicks / arenaCaptureTicks, 1);
         this.captureBar.setFillStyle(faction ? Phaser.Display.Color.HexStringToColor(faction.color).color : 0xaabc95);
       }
