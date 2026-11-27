@@ -30,8 +30,8 @@ function App() {
     void connection.then(
       (room) => {
         if (!active) return;
-        room.onMessage("guestName", (guestName: string) => {
-          if (active) setStatus(`Connected to the world as ${guestName}.`);
+        room.onMessage("displayName", (displayName: string) => {
+          if (active) setStatus(`Connected to the world as ${displayName}.`);
         });
         room.onMessage("factions", (factions: Faction[]) => {
           if (active) setFactions(factions);

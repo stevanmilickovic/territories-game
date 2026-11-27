@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { defineRoom, defineServer, matchMaker, Room, type Client } from "colyseus";
+import { defineRoom, defineServer, ErrorCode, matchMaker, Room, ServerError, type Client } from "colyseus";
 import type {
   ArenaEntryResult,
   StartChallengeResult,
@@ -11,7 +11,7 @@ import { worldMap } from "../../shared/src/world-map.ts";
 import { canAttackTerritory } from "./attack-eligibility.ts";
 import { TerritoryArena } from "./territory-arena.ts";
 
-type GuestClient = Client<{ userData: { guestName: string } }>;
+type WorldClient = Client<{ auth: { displayName: string } }>;
 type ArenaReservation = Awaited<ReturnType<typeof matchMaker.reserveSeatFor>>;
 const gatheringWindowMs = 0; // Skip the gathering delay during local playtesting.
 
@@ -26,7 +26,7 @@ class WorldRoom extends Room {
   private readonly arenasByTerritory = new Map<string, ReturnType<typeof matchMaker.createRoom>>();
 
   messages = {
-    startChallenge: (client: GuestClient, territoryId: unknown): StartChallengeResult => {
+    startChallenge: (client: WorldClient, territoryId: unknown): StartChallengeResult => {
       const faction = this.factionsByFounder.get(client.sessionId);
       if (!faction) {
         return { ok: false, error: "Found a faction before challenging a territory." };
@@ -58,7 +58,7 @@ class WorldRoom extends Room {
       return { ok: true, challenge };
     },
 
-    enterArena: async (client: GuestClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
+    enterArena: async (client: WorldClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
       const faction = this.factionsByFounder.get(client.sessionId);
       if (!faction) return { ok: false, error: "Found a faction before entering an arena." };
       if (typeof territoryId !== "string" || !this.ownership.has(territoryId)) {
@@ -95,7 +95,7 @@ class WorldRoom extends Room {
       return { ok: true, reservation };
     },
 
-    createFaction: (client: GuestClient, payload: unknown): CreateFactionResult => {
+    createFaction: (client: WorldClient, payload: unknown): CreateFactionResult => {
       if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
         return { ok: false, error: "Provide a faction name and color." };
       }
@@ -151,10 +151,25 @@ class WorldRoom extends Room {
     };
   }
 
-  onJoin(client: GuestClient) {
-    const guestName = `Guest ${this.nextGuestNumber++}`;
-    client.userData = { guestName };
-    client.send("guestName", guestName);
+  onAuth(_client: WorldClient, options: { username?: unknown }) {
+    if (options.username === undefined) {
+      return { displayName: `Guest ${this.nextGuestNumber++}` };
+    }
+
+    const displayName = typeof options.username === "string" ? options.username.trim().normalize("NFC") : "";
+    const length = [...displayName].length;
+    if (length < 3 || length > 24) {
+      throw new ServerError(ErrorCode.AUTH_FAILED, "Use a username between 3 and 24 characters.");
+    }
+    if (!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}_ -]*$/u.test(displayName)) {
+      throw new ServerError(ErrorCode.AUTH_FAILED, "Start with a letter or number and use only letters, numbers, spaces, hyphens, or underscores.");
+    }
+    return { displayName };
+  }
+
+  onJoin(client: WorldClient) {
+    if (!client.auth) throw new Error("Missing world display name.");
+    client.send("displayName", client.auth.displayName);
     client.send("factions", [...this.factionsByFounder.values()]);
     client.send("territoryActivity", this.getTerritoryActivity());
   }
