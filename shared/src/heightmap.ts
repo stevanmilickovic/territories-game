@@ -8,7 +8,7 @@ export type HeightmapSettings = {
   persistence: number;
 };
 
-type Heightmap = {
+export type Heightmap = {
   width: number;
   height: number;
   // Normalized elevations in row-major order, indexed by y * width + x.
