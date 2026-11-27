@@ -6,7 +6,7 @@ import {
 } from "../../shared/src/arena.ts";
 import { ArenaInput, ArenaPlayer, ArenaState } from "../../shared/src/arena-schema.ts";
 
-type ArenaMember = { guestSessionId: string; factionId: string; color: string };
+type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
 
 const { width, height, edgeInset } = arenaLayout;
@@ -169,11 +169,11 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
 
   onJoin(client: ArenaClient) {
     if (!client.auth) throw new Error("Missing arena reservation identity.");
-    const { guestSessionId, factionId, color } = client.auth;
+    const { guestSessionId, displayName, factionId, color } = client.auth;
     const deadline = this.pendingRespawns.get(guestSessionId) ?? 0;
     const respawnAt = deadline > this.clock.elapsedTime ? deadline : 0;
     this.state.players.set(client.sessionId, new ArenaPlayer({
-      factionId, color, ...this.getSpawn(client.auth), aim: 0,
+      factionId, color, displayName, ...this.getSpawn(client.auth), aim: 0,
       health: respawnAt ? 0 : arenaMaxHealth, respawnAt, life: this.nextLife++,
     }));
   }

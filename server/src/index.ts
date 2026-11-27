@@ -61,6 +61,7 @@ class WorldRoom extends Room {
     enterArena: async (client: WorldClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
       const faction = this.factionsByFounder.get(client.sessionId);
       if (!faction) return { ok: false, error: "Found a faction before entering an arena." };
+      if (!client.auth) return { ok: false, error: "Join the world again before entering an arena." };
       if (typeof territoryId !== "string" || !this.ownership.has(territoryId)) {
         return { ok: false, error: "Choose a valid territory." };
       }
@@ -89,6 +90,7 @@ class WorldRoom extends Room {
 
       const reservation = await matchMaker.reserveSeatFor(await arena, {}, {
         guestSessionId: client.sessionId,
+        displayName: client.auth.displayName,
         factionId: faction.id,
         color: faction.color,
       });

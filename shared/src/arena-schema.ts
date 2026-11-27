@@ -1,6 +1,7 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
 
 export const ArenaPlayer = schema({
+  displayName: t.string(),
   color: t.string(),
   factionId: t.string(),
   health: t.uint8(),

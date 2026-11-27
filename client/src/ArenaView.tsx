@@ -1,4 +1,4 @@
-import { Predict, type Room } from "@colyseus/sdk";
+import { Callbacks, Predict, type Room } from "@colyseus/sdk";
 import Phaser from "phaser";
 import { useEffect, useRef } from "react";
 import { ArenaInput, type ArenaState } from "../../shared/src/arena-schema";
@@ -43,6 +43,7 @@ export default function ArenaView({ room, factions }: {
       private trackingPlayers = false;
       private resetLocalPrediction?: () => void;
       private readonly playerLives = new WeakMap<object, number>();
+      private readonly nameLabels = new Map<string, Phaser.GameObjects.Text>();
       private firePressed = false;
       private shotCooldown = 0;
       private hitUntil = 0;
@@ -56,8 +57,8 @@ export default function ArenaView({ room, factions }: {
         floor.lineStyle(2, 0xaabc95).strokeCircle(width / 2, height / 2, arenaCaptureRadius);
         this.markers = this.add.graphics();
         const hudStyle = { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" };
-        this.hud = this.add.text(12, 12, "", hudStyle);
-        this.captureLabel = this.add.text(width - 12, 12, "", hudStyle).setOrigin(1, 0);
+        this.hud = this.add.text(12, 12, "", hudStyle).setDepth(2);
+        this.captureLabel = this.add.text(width - 12, 12, "", hudStyle).setOrigin(1, 0).setDepth(2);
         this.add.rectangle(width - 172, 38, 160, 6, 0x41584d).setOrigin(0, 0);
         this.captureBar = this.add.rectangle(width - 172, 38, 160, 6, 0xaabc95).setOrigin(0, 0);
         this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -88,6 +89,25 @@ export default function ArenaView({ room, factions }: {
         }
       }
 
+      private renderName(sessionId: string, displayName: string, x: number, y: number) {
+        let label = this.nameLabels.get(sessionId);
+        if (!label) {
+          label = this.add.text(0, 0, displayName, {
+            fontFamily: "sans-serif",
+            fontSize: "12px",
+            color: "#e8eddf",
+            stroke: "#172627",
+            strokeThickness: 3,
+          }).setOrigin(0.5, 1).setDepth(1);
+          this.nameLabels.set(sessionId, label);
+        }
+        const halfWidth = label.width / 2;
+        label.setPosition(
+          Phaser.Math.Clamp(x, halfWidth, width - halfWidth),
+          Math.max(label.height, y - arenaPlayerRadius - 3),
+        ).setVisible(true);
+      }
+
       private renderCapture() {
         const { captureFactionId, captureTicks, captureContested, ownerFactionId } = room.state;
         const faction = currentFactions.current.find(({ id }) => id === captureFactionId);
@@ -113,6 +133,11 @@ export default function ArenaView({ room, factions }: {
         this.renderCapture();
         if (!this.trackingPlayers) {
           predict.attachAll("players", playerInterpolation);
+          const stopRemovingNames = Callbacks.get(room).onRemove("players", (_player, sessionId) => {
+            this.nameLabels.get(sessionId)?.destroy();
+            this.nameLabels.delete(sessionId);
+          });
+          this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopRemovingNames);
           const reconciler = predict.reconciler(localPlayer, {
             input,
             fields: ["x", "y", "aim"],
@@ -198,7 +223,10 @@ export default function ArenaView({ room, factions }: {
           this.markers.fillStyle(0xffefae).fillCircle(from.x, from.y, 4);
         }
         for (const [sessionId, player] of players) {
-          if (player.health === 0) continue;
+          if (player.health === 0) {
+            this.nameLabels.get(sessionId)?.setVisible(false);
+            continue;
+          }
           const x = predict.value(player, "x");
           const y = predict.value(player, "y");
           const aim = predict.value(player, "aim");
@@ -209,6 +237,7 @@ export default function ArenaView({ room, factions }: {
           );
           this.markers.fillStyle(color).fillCircle(x, y, arenaPlayerRadius);
           this.markers.lineStyle(2, outline).strokeCircle(x, y, arenaPlayerRadius);
+          this.renderName(sessionId, player.displayName, x, y);
         }
       }
     }
@@ -235,7 +264,7 @@ export default function ArenaView({ room, factions }: {
       className="arena-canvas"
       ref={host}
       role="img"
-      aria-label="Arena with a central capture point and player spawn markers"
+      aria-label="Arena with a central capture point, player markers, and display names"
     />
   );
 }
