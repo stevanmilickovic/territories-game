@@ -1,3 +1,5 @@
+import { seededRandom } from "./seeded-random.ts";
+
 export type HeightmapSettings = {
   width: number;
   height: number;
@@ -14,18 +16,6 @@ export type Heightmap = {
   // Normalized elevations in row-major order, indexed by y * width + x.
   elevations: Float32Array;
 };
-
-function seededRandom(seed: number) {
-  let state = seed;
-
-  // Mulberry32 gives zero and every other 32-bit seed a usable stream.
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = Math.imul(state ^ (state >>> 15), state | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 0x100000000;
-  };
-}
 
 function fade(value: number): number {
   return value * value * value * (value * (value * 6 - 15) + 10);
@@ -66,9 +56,6 @@ export function generateHeightmap(settings: HeightmapSettings): Heightmap {
   const { width, height, seed, baseFrequency, octaves, lacunarity, persistence } = settings;
   if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {
     throw new RangeError("Heightmap dimensions must be positive integers.");
-  }
-  if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
-    throw new RangeError("Heightmap seed must be an unsigned 32-bit integer.");
   }
   if (!Number.isSafeInteger(octaves) || octaves < 1 || !Number.isFinite(baseFrequency)
     || baseFrequency <= 0 || !Number.isFinite(lacunarity) || lacunarity < 1
