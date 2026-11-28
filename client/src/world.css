@@ -39,11 +39,40 @@ header p, .faction-list > p { color: #b7c7b9; }
 }
 
 .world {
-  --map-size: min(100vw, 100dvh);
+  --map-size: min(100vw, calc(100dvh - 1rem));
   --corner-inset: clamp(0.5rem, 2vw, 1rem);
-  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, var(--map-size));
+  grid-template-areas: "map" "left" "right";
+  align-items: start;
   width: var(--map-size);
-  height: var(--map-size);
+}
+
+.world-map-stage {
+  grid-area: map;
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+
+.world-side {
+  min-width: 0;
+  padding: 0.75rem 0.5rem 0;
+}
+
+.world-side-right { grid-area: right; }
+.world-side .world-overlay { position: static; }
+.world-side .world-overlay[open] { width: auto; }
+
+@media (min-width: 68rem) {
+  .world {
+    --map-size: min(100dvh, calc(100vw - 40rem));
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) var(--map-size) repeat(2, minmax(0, 1fr));
+    grid-template-areas: ". left map right .";
+  }
+
+  .world-side { padding: 0.5rem; }
 }
 
 .world-identity,
@@ -73,7 +102,6 @@ header p, .faction-list > p { color: #b7c7b9; }
 }
 .world-overlay[open] summary { border-bottom: 1px solid #53655b; }
 .world-activity { left: var(--corner-inset); bottom: var(--corner-inset); }
-.world-factions { top: var(--corner-inset); right: var(--corner-inset); }
 .overlay-content {
   max-height: calc(var(--map-size) - 2 * var(--corner-inset) - 3rem);
   overflow-y: auto;

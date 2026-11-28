@@ -265,141 +265,145 @@ function App() {
   return (
     <main className="world-screen">
       <section className="world" aria-label="World map">
-        <svg
-          className="map"
-          viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
-          role="group"
-          aria-label="Select a province"
-        >
-          {territories.map(({ id, name, path, owner }) => (
-            <path
-              key={id}
-              id={id}
-              className="territory-shape"
-              d={path}
-              fillRule="evenodd"
-              style={{ fill: owner?.color }}
-              role="button"
-              tabIndex={0}
-              aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}`}
-              aria-pressed={id === territoryId}
-              onClick={() => selectProvince(id)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                selectProvince(id);
-              }}
-            />
-          ))}
-          <defs>
-            <clipPath id="province-land-clip">
-              {territories.map(({ id, path }) => <path key={id} d={path} clipRule="evenodd" />)}
-            </clipPath>
-          </defs>
-          <g className="map-relief" clipPath="url(#province-land-clip)" aria-hidden="true">
-            {worldMap.reliefPaths.map((path, index) => (
-              <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
+        <div className="world-map-stage">
+          <svg
+            className="map"
+            viewBox={`0 0 ${worldMap.width} ${worldMap.height}`}
+            role="group"
+            aria-label="Select a province"
+          >
+            {territories.map(({ id, name, path, owner }) => (
+              <path
+                key={id}
+                id={id}
+                className="territory-shape"
+                d={path}
+                fillRule="evenodd"
+                style={{ fill: owner?.color }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}`}
+                aria-pressed={id === territoryId}
+                onClick={() => selectProvince(id)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  selectProvince(id);
+                }}
+              />
             ))}
-          </g>
-          <g className="map-borders" aria-hidden="true">
-            <path className="map-border-halo" d={visibleBorders} />
-            <path d={visibleBorders} />
-          </g>
-          <MapLabels labels={provinceLabels} />
-        </svg>
-        <header className="world-identity">
-          <h1>Territories Game</h1>
-          <p role="status">Connected to the world as {displayName}.</p>
-        </header>
-        <details className="world-overlay world-activity" name="world-controls">
-          <summary>Territories</summary>
-          <div className="overlay-content">
-            <ul className="territory-activity" aria-label="Territory activity">
-              {territories.map(({ id, name, owner, challenges }) => (
-                <li key={id}>
-                  <strong>{name}</strong>
-                  <span>{owner ? `Owned by ${owner.name}` : "Unclaimed"}</span>
-                  {renderChallenges(challenges)}
-                </li>
+            <defs>
+              <clipPath id="province-land-clip">
+                {territories.map(({ id, path }) => <path key={id} d={path} clipRule="evenodd" />)}
+              </clipPath>
+            </defs>
+            <g className="map-relief" clipPath="url(#province-land-clip)" aria-hidden="true">
+              {worldMap.reliefPaths.map((path, index) => (
+                <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
               ))}
-            </ul>
-          </div>
-        </details>
-        <details className="world-overlay world-factions" name="world-controls">
-          <summary>Factions</summary>
-          <div className="overlay-content">
-            {founded ? (
-              <p role="status">You founded <strong>{founded.name}</strong>.</p>
-            ) : (
-              <form onSubmit={createFaction}>
-                <fieldset disabled={!room || isSubmitting}>
-                  <label>
-                    Faction name
-                    <input name="name" required maxLength={40} />
-                  </label>
-                  <label>
-                    Faction color
-                    <input name="color" type="color" defaultValue="#369b72" />
-                  </label>
-                  <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
-                </fieldset>
-              </form>
-            )}
-            {error && <p role="alert">{error}</p>}
-            <div className="faction-list" aria-live="polite">
-              {factions.length === 0 ? <p>No factions yet.</p> : (
-                <ul aria-label="Founded factions">
-                  {factions.map(({ id, name, color }) => (
-                    <li key={id}>
-                      <span className="swatch" style={{ backgroundColor: color }} aria-hidden="true" />
-                      {name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </details>
-        {selectedProvince && (
-          <section className="world-overlay province-panel" aria-labelledby="province-heading">
-            <div className="province-heading">
-              <h2 id="province-heading">{selectedProvince.name}</h2>
-              <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => selectProvince("")}>
-                Close
-              </button>
-            </div>
+            </g>
+            <g className="map-borders" aria-hidden="true">
+              <path className="map-border-halo" d={visibleBorders} />
+              <path d={visibleBorders} />
+            </g>
+            <MapLabels labels={provinceLabels} />
+          </svg>
+          <header className="world-identity">
+            <h1>Territories Game</h1>
+            <p role="status">Connected to the world as {displayName}.</p>
+          </header>
+          <details className="world-overlay world-activity" name="world-controls">
+            <summary>Territories</summary>
             <div className="overlay-content">
-              <p>{selectedProvince.owner ? `Owned by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
-              <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
-              {renderChallenges(selectedProvince.challenges)}
-              <div className="province-actions">
-                {canEnter && founded && (
-                  <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(founded)}>Enter arena</button>
-                )}
-                {visitingSides.map((faction) => (
-                  <button key={faction.id} type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(faction)}>
-                    Fight for {faction.name}
-                  </button>
+              <ul className="territory-activity" aria-label="Territory activity">
+                {territories.map(({ id, name, owner, challenges }) => (
+                  <li key={id}>
+                    <strong>{name}</strong>
+                    <span>{owner ? `Owned by ${owner.name}` : "Unclaimed"}</span>
+                    {renderChallenges(challenges)}
+                  </li>
                 ))}
-                {isGathering && <p>Your faction is gathering.</p>}
-                {canAttack && confirmingAttack && (
-                  <>
-                    <p>Declare an attack on {selectedProvince.name}?</p>
-                    <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Confirm attack</button>
-                    <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => setConfirmingAttack(false)}>Cancel</button>
-                  </>
-                )}
-                {canAttack && !confirmingAttack && (
-                  <button type="button" disabled={isSubmitting} onClick={() => setConfirmingAttack(true)}>Declare attack</button>
-                )}
-                {activity && !canEnter && !isGathering && !canAttack && visitingSides.length === 0 && (
-                  <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
+              </ul>
+            </div>
+          </details>
+          {selectedProvince && (
+            <section className="world-overlay province-panel" aria-labelledby="province-heading">
+              <div className="province-heading">
+                <h2 id="province-heading">{selectedProvince.name}</h2>
+                <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => selectProvince("")}>
+                  Close
+                </button>
+              </div>
+              <div className="overlay-content">
+                <p>{selectedProvince.owner ? `Owned by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
+                <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
+                {renderChallenges(selectedProvince.challenges)}
+                <div className="province-actions">
+                  {canEnter && founded && (
+                    <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(founded)}>Enter arena</button>
+                  )}
+                  {visitingSides.map((faction) => (
+                    <button key={faction.id} type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(faction)}>
+                      Fight for {faction.name}
+                    </button>
+                  ))}
+                  {isGathering && <p>Your faction is gathering.</p>}
+                  {canAttack && confirmingAttack && (
+                    <>
+                      <p>Declare an attack on {selectedProvince.name}?</p>
+                      <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Confirm attack</button>
+                      <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => setConfirmingAttack(false)}>Cancel</button>
+                    </>
+                  )}
+                  {canAttack && !confirmingAttack && (
+                    <button type="button" disabled={isSubmitting} onClick={() => setConfirmingAttack(true)}>Declare attack</button>
+                  )}
+                  {activity && !canEnter && !isGathering && !canAttack && visitingSides.length === 0 && (
+                    <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
+                  )}
+                </div>
+                {provinceError && <p role="alert">{provinceError}</p>}
+              </div>
+            </section>
+          )}
+        </div>
+        <div className="world-side world-side-right">
+          <details className="world-overlay" name="world-controls">
+            <summary>Factions</summary>
+            <div className="overlay-content">
+              {founded ? (
+                <p role="status">You founded <strong>{founded.name}</strong>.</p>
+              ) : (
+                <form onSubmit={createFaction}>
+                  <fieldset disabled={!room || isSubmitting}>
+                    <label>
+                      Faction name
+                      <input name="name" required maxLength={40} />
+                    </label>
+                    <label>
+                      Faction color
+                      <input name="color" type="color" defaultValue="#369b72" />
+                    </label>
+                    <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
+                  </fieldset>
+                </form>
+              )}
+              {error && <p role="alert">{error}</p>}
+              <div className="faction-list" aria-live="polite">
+                {factions.length === 0 ? <p>No factions yet.</p> : (
+                  <ul aria-label="Founded factions">
+                    {factions.map(({ id, name, color }) => (
+                      <li key={id}>
+                        <span className="swatch" style={{ backgroundColor: color }} aria-hidden="true" />
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-              {provinceError && <p role="alert">{provinceError}</p>}
             </div>
-          </section>
-        )}
+          </details>
+        </div>
       </section>
     </main>
   );
