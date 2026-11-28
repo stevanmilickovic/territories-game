@@ -10,6 +10,10 @@ import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
 const ArenaView = lazy(() => import("./ArenaView"));
+const visibleBorders = worldMap.borderPaths
+  .filter(({ kind }) => kind !== "map-edge")
+  .map(({ path }) => path)
+  .join("");
 
 function App() {
   const [joinRequest, setJoinRequest] = useState<{ username?: string } | null>(null);
@@ -288,8 +292,8 @@ function App() {
             ))}
           </g>
           <g className="map-borders" aria-hidden="true">
-            <path className="map-border-halo" d={worldMap.borders} />
-            <path d={worldMap.borders} />
+            <path className="map-border-halo" d={visibleBorders} />
+            <path d={visibleBorders} />
           </g>
           {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
             <text
