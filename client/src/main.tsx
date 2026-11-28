@@ -4,14 +4,16 @@ import { createRoot } from "react-dom/client";
 import { ArenaState } from "../../shared/src/arena-schema";
 import { canAttackTerritory } from "../../shared/src/attack-eligibility";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
-import type { FactionResult, Faction } from "../../shared/src/factions.ts";
+import { factionFlag, type FactionFlag as FlagColors, type FactionResult, type Faction } from "../../shared/src/factions";
 import { worldMap } from "../../shared/src/world-map";
 import { MapLabels } from "./MapLabels";
 import { FactionFlag } from "./FactionFlag";
+import { FlagEditor } from "./FlagEditor";
 import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
 const ArenaView = lazy(() => import("./ArenaView"));
+const defaultFactionColor = "#369b72";
 const visibleBorders = worldMap.borderPaths
   .filter(({ kind }) => kind !== "map-edge")
   .map(({ path }) => path)
@@ -27,6 +29,9 @@ function App() {
   const [room, setRoom] = useState<Room | null>(null);
   const [factions, setFactions] = useState<Faction[]>([]);
   const [founded, setFounded] = useState<Faction | null>(null);
+  const [factionColor, setFactionColor] = useState(defaultFactionColor);
+  const [paintedCells, setPaintedCells] = useState<Partial<Record<number, string>>>({});
+  const [editedFlag, setEditedFlag] = useState<FlagColors | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string; sideName: string } | null>(null);
@@ -66,6 +71,9 @@ function App() {
           setArena(null);
           setFactions([]);
           setFounded(null);
+          setFactionColor(defaultFactionColor);
+          setPaintedCells({});
+          setEditedFlag(null);
           setActivity(null);
           setTerritoryId("");
           setConfirmingAttack(false);
@@ -113,6 +121,7 @@ function App() {
   const canAttack = Boolean(founded && territory && activity && !ownChallenge && canAttackTerritory(
     founded.id, territory, new Map(Object.entries(activity.owners)),
   ));
+  const creationFlag = factionFlag({ color: factionColor }).map((color, index) => paintedCells[index] ?? color);
 
   function selectProvince(id: string) {
     if (isSubmitting) return;
@@ -144,11 +153,30 @@ function App() {
       const result: FactionResult = await room.request("createFaction", {
         name: form.get("name"),
         color: form.get("color"),
+        ...(Object.keys(paintedCells).length > 0 ? { flag: creationFlag } : {}),
       });
       if (result.ok) setFounded(result.faction);
       else setError(result.error);
     } catch {
       setError("Could not confirm faction creation. Try again if you’re still connected.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function saveFlag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!room || !founded || !editedFlag || isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const result: FactionResult = await room.request("updateFactionFlag", { factionId: founded.id, flag: editedFlag });
+      if (result.ok) {
+        setFounded(result.faction);
+        setEditedFlag(null);
+      } else setError(result.error);
+    } catch {
+      setError("Could not save the flag. Try again if you’re still connected.");
     } finally {
       setIsSubmitting(false);
     }
@@ -376,6 +404,18 @@ function App() {
                     <span className="swatch" style={{ backgroundColor: founded.color }} aria-hidden="true" />
                     {founded.color}
                   </span>
+                  {editedFlag ? (
+                    <form onSubmit={saveFlag}>
+                      <fieldset disabled={isSubmitting}>
+                        <FlagEditor flag={editedFlag} onPaint={(index, color) =>
+                          setEditedFlag(flag => flag?.map((cell, pixel) => pixel === index ? color : cell) ?? null)} />
+                        <button type="submit">Save flag</button>
+                        <button type="button" onClick={() => { setEditedFlag(null); setError(""); }}>Cancel</button>
+                      </fieldset>
+                    </form>
+                  ) : (
+                    <button type="button" disabled={isSubmitting} onClick={() => setEditedFlag(factionFlag(founded))}>Edit flag</button>
+                  )}
                 </div>
               ) : (
                 <form onSubmit={createFaction}>
@@ -386,8 +426,10 @@ function App() {
                     </label>
                     <label>
                       Faction color
-                      <input name="color" type="color" defaultValue="#369b72" />
+                      <input name="color" type="color" value={factionColor} onChange={event => setFactionColor(event.target.value)} />
                     </label>
+                    <FlagEditor flag={creationFlag} onPaint={(index, color) =>
+                      setPaintedCells(cells => ({ ...cells, [index]: color }))} />
                     <button type="submit">{isSubmitting ? "Creating…" : "Create faction"}</button>
                   </fieldset>
                 </form>
