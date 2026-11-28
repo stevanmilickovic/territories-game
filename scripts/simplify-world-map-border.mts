@@ -1,7 +1,7 @@
 import type { Point } from "./trace-world-map-borders.mts";
 
-// A one-cell diagonal staircase deviates by at most sqrt(1/2) grid units.
-const tolerance = 0.72;
+// Smooth irregular one-cell steps while retaining bends that extend beyond them.
+const tolerance = 1.15;
 
 function distanceToSegment([x, y]: Point, [ax, ay]: Point, [bx, by]: Point): number {
   const dx = bx - ax;

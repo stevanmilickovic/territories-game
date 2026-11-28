@@ -1,6 +1,6 @@
 import type { Point } from "./trace-world-map-borders.mts";
 
-const minimumTurnCosine = Math.cos(105 * Math.PI / 180);
+const minimumTurnCosine = Math.cos(125 * Math.PI / 180);
 const maximumTurnCosine = Math.cos(12 * Math.PI / 180);
 
 function coordinates(x: number, y: number): string {
@@ -27,7 +27,7 @@ export function roundedBorderPath(points: readonly Point[], width: number, heigh
     }
 
     // Leave a straight section between adjacent curves and cap the trim on long segments.
-    const trim = Math.min(1.25, incoming * 0.3, outgoing * 0.3);
+    const trim = Math.min(1.6, incoming * 0.4, outgoing * 0.4);
     const entry = coordinates(x + (previousX - x) * trim / incoming, y + (previousY - y) * trim / incoming);
     const exit = coordinates(x + (nextX - x) * trim / outgoing, y + (nextY - y) * trim / outgoing);
     path += `L${entry}Q${coordinates(x, y)} ${exit}`;

@@ -95,6 +95,7 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .map .territory-shape {
   fill: #acb58a;
+  pointer-events: fill;
   cursor: pointer;
 }
 

@@ -163,7 +163,7 @@ const provinceNames = [
 ];
 const labelPlacements: Readonly<Partial<Record<string, { anchor: Point; fontSize: number }>>> = {
   // Gullstrand is narrow between the coast and the eastern map edge.
-  "province-05": { anchor: [149, 94.5], fontSize: 3.5 },
+  "province-05": { anchor: [149, 93.5], fontSize: 3.5 },
 };
 assert.equal(centers.length, provinceNames.length);
 for (const [index, label] of labels.entries()) {

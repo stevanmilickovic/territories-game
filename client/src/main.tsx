@@ -6,6 +6,7 @@ import { canAttackTerritory } from "../../shared/src/attack-eligibility";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
 import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
+import { MapLabels } from "./MapLabels";
 import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
@@ -14,6 +15,9 @@ const visibleBorders = worldMap.borderPaths
   .filter(({ kind }) => kind !== "map-edge")
   .map(({ path }) => path)
   .join("");
+const provinceLabels = worldMap.territories.map(({ id, name, labelAnchor, labelFontSize }) => ({
+  id, name, anchor: [labelAnchor[0], labelAnchor[1]] as const, fontSize: labelFontSize, outlineIds: [id],
+}));
 
 function App() {
   const [joinRequest, setJoinRequest] = useState<{ username?: string } | null>(null);
@@ -270,6 +274,7 @@ function App() {
           {territories.map(({ id, name, path, owner }) => (
             <path
               key={id}
+              id={id}
               className="territory-shape"
               d={path}
               fillRule="evenodd"
@@ -300,18 +305,7 @@ function App() {
             <path className="map-border-halo" d={visibleBorders} />
             <path d={visibleBorders} />
           </g>
-          {worldMap.territories.map(({ id, name, labelAnchor: [x, y], labelFontSize }) => (
-            <text
-              key={id}
-              x={x}
-              y={y}
-              style={{ fontSize: labelFontSize }}
-              textAnchor="middle"
-              aria-hidden="true"
-            >
-              {name}
-            </text>
-          ))}
+          <MapLabels labels={provinceLabels} />
         </svg>
         <header className="world-identity">
           <h1>Territories Game</h1>

@@ -4,7 +4,7 @@ import { roundedBorderPath } from "./round-world-map-border.mts";
 
 test("rounds a bend without moving the path endpoints", () => {
   assert.equal(roundedBorderPath([[1, 1], [5, 1], [5, 5]], 10, 10),
-    "M1 1L3.8 1Q5 1 5 2.2L5 5");
+    "M1 1L3.4 1Q5 1 5 2.6L5 5");
 });
 
 test("keeps the sharp turn and the contact with the map frame", () => {
@@ -14,5 +14,5 @@ test("keeps the sharp turn and the contact with the map frame", () => {
 
 test("closes a rounded loop at its original anchor", () => {
   const path = roundedBorderPath([[2, 2], [6, 2], [6, 6], [2, 6], [2, 2]], 10, 10);
-  assert.equal(path, "M2 2L4.8 2Q6 2 6 3.2L6 4.8Q6 6 4.8 6L3.2 6Q2 6 2 4.8Z");
+  assert.equal(path, "M2 2L4.4 2Q6 2 6 3.6L6 4.4Q6 6 4.4 6L3.6 6Q2 6 2 4.4Z");
 });
