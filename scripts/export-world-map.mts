@@ -5,6 +5,7 @@ import { generateHeightmap } from "../shared/src/heightmap.ts";
 import { placeTerritoryCenters } from "../shared/src/territory-centers.ts";
 import { assignTerrainTerritories } from "../shared/src/terrain-territories.ts";
 import { traceBorderPaths, type Point } from "./trace-world-map-borders.mts";
+import { simplifyBorder } from "./simplify-world-map-border.mts";
 
 type Edge = { to: number; direction: number };
 
@@ -81,7 +82,10 @@ function svgLine(points: readonly Point[]): string {
   const [[x, y], ...rest] = points;
   let path = `M${x} ${y}`;
   for (const [index, [nextX, nextY]] of rest.entries()) {
-    path += nextX === points[index][0] ? `V${nextY}` : `H${nextX}`;
+    const [previousX, previousY] = points[index];
+    if (nextX === previousX) path += `V${nextY}`;
+    else if (nextY === previousY) path += `H${nextX}`;
+    else path += `L${nextX} ${nextY}`;
   }
   return path;
 }
@@ -169,10 +173,14 @@ for (const boundary of boundaries) {
 const borderPaths = boundaries.map(({ kind, labels, points }) => {
   const [startX, startY] = points[0];
   const [endX, endY] = points[points.length - 1];
+  const closed = startX === endX && startY === endY;
+  const toPath = (line: Point[]) => closed ? svgLine(line.slice(0, -1)) + "Z" : svgLine(line);
   return {
     kind,
     territoryIds: labels.map(idFor),
-    path: startX === endX && startY === endY ? svgLine(points.slice(0, -1)) + "Z" : svgLine(points),
+    path: toPath(points),
+    // The map still draws the grid paths alongside its grid-based province fills.
+    simplifiedPath: toPath(kind === "map-edge" ? points : simplifyBorder(points, width, height)),
   };
 });
 
