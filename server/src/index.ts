@@ -9,6 +9,8 @@ import type {
 import { flagCellCount, type Faction, type FactionFlag, type FactionResult } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
 import { canAttackTerritory } from "../../shared/src/attack-eligibility.ts";
+import { selectAttackOrigin } from "../../shared/src/arena-spawn.ts";
+import { getProvinceArena } from "../../shared/src/province-arena.ts";
 import { TerritoryArena } from "./territory-arena.ts";
 
 type WorldClient = Client<{ auth: { displayName: string } }>;
@@ -102,7 +104,10 @@ class WorldRoom extends Room {
       return { ok: false, error: "Choose an adjacent territory your faction does not own." };
     }
 
-    const challenge = { territoryId: territory.id, challengerFactionId: faction.id };
+    const owned = new Set([...this.ownership].flatMap(([id, owner]) => owner === faction.id ? [id] : []));
+    const originTerritoryId = owned.size ? selectAttackOrigin(getProvinceArena(territory.id), owned) : undefined;
+    if (owned.size && !originTerritoryId) return { ok: false, error: "There is no usable spawn along your shared border." };
+    const challenge = { territoryId: territory.id, challengerFactionId: faction.id, originTerritoryId };
     challenges.set(faction.id, challenge);
     this.challengesByTerritory.set(territory.id, challenges);
     this.broadcast("territoryActivity", this.getTerritoryActivity());
@@ -131,6 +136,7 @@ class WorldRoom extends Room {
           }
         };
         room.getEntryError = (guestSessionId, factionId) => this.getArenaEntryError(territoryId, guestSessionId, factionId);
+        room.getAttackOrigin = (factionId) => this.challengesByTerritory.get(territoryId)?.get(factionId)?.originTerritoryId;
         return listing;
       }).catch((error: unknown) => {
         this.arenasByTerritory.delete(territoryId);

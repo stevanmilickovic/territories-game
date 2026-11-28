@@ -1,11 +1,12 @@
 import { ErrorCode, Room, ServerError, type Client } from "colyseus";
 import {
-  arenaCaptureRadius, arenaCaptureTicks, arenaSpawnInset, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
+  arenaCaptureRadius, arenaCaptureTicks, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
   arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena.ts";
 import { ArenaGroundItem, ArenaInput, ArenaPlayer, ArenaProjectile, ArenaState } from "../../shared/src/arena-schema.ts";
-import { arenaMaxDimension, arenaBoundaryDistance, containsArenaPoint, getProvinceArena, insetArenaEdge, type ProvinceArena } from "../../shared/src/province-arena.ts";
+import { arenaMaxDimension, arenaBoundaryDistance, getProvinceArena, type ProvinceArena } from "../../shared/src/province-arena.ts";
+import { pickAttackSpawn } from "../../shared/src/arena-spawn.ts";
 
 type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
@@ -43,6 +44,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   private nextGroundItemId = 1;
   onArenaEmpty?: () => void;
   getEntryError?: (guestSessionId: string, factionId: string) => string | undefined;
+  getAttackOrigin?: (factionId: string) => string | undefined;
   onTerritoryCaptured?: (factionId: string) => void;
 
   messages = {
@@ -124,6 +126,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     if (state.captureTicks < arenaCaptureTicks) return;
 
     this.onTerritoryCaptured?.(holdingFactionId);
+    this.edgeSpawns.delete(state.ownerFactionId);
+    this.edgeSpawns.delete(holdingFactionId);
     state.ownerFactionId = holdingFactionId;
     state.captureFactionId = "";
     state.captureTicks = 0;
@@ -224,9 +228,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     if (this.state.ownerFactionId === factionId) return this.layout.capturePoint;
     const known = this.edgeSpawns.get(factionId);
     if (known) return known;
-    const points = this.layout.edges.map(edge => insetArenaEdge(edge, 0.5, arenaSpawnInset))
-      .filter(point => containsArenaPoint(this.layout.edges, point, arenaPlayerRadius));
-    const spawn = points[Math.floor(Math.random() * points.length)] ?? this.layout.capturePoint;
+    const spawn = pickAttackSpawn(this.layout, this.getAttackOrigin?.(factionId));
+    if (!spawn) throw new Error(`No playable edge spawn for faction ${factionId}.`);
     this.edgeSpawns.set(factionId, spawn);
     return spawn;
   }
