@@ -117,13 +117,19 @@ header p, .faction-list > p { color: #b7c7b9; }
   fill: #acb58a;
   pointer-events: fill;
   cursor: pointer;
+  outline: none;
 }
 
 .map .territory-shape:hover,
-.map .territory-shape:focus-visible,
-.map .territory-shape[aria-pressed="true"] {
+.map .territory-shape:focus-visible {
   stroke: #ffdc8f;
   stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.map .territory-shape[aria-pressed="true"] {
+  stroke: #fff;
+  stroke-width: 1.6;
   stroke-linejoin: round;
 }
 
