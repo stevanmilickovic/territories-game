@@ -11,6 +11,7 @@ export type ProvinceArena = {
   borders: ArenaBorder[];
   capturePoint: ArenaPoint;
 };
+export const arenaMaxDimension = 2400;
 
 function outlinePoints(path: string, scale = 1): ArenaPoint[][] {
   const rings: ArenaPoint[][] = [];
@@ -59,6 +60,37 @@ export function containsArenaPoint(edges: readonly ArenaEdge[], point: ArenaPoin
   return inside;
 }
 
+export function arenaBoundaryDistance(edges: readonly ArenaEdge[], origin: ArenaPoint, dx: number, dy: number, limit: number): number {
+  let closest = limit;
+  for (const { from, to } of edges) {
+    const edgeX = to.x - from.x, edgeY = to.y - from.y;
+    const determinant = dx * edgeY - dy * edgeX;
+    if (Math.abs(determinant) < 1e-8) continue;
+    const relativeX = from.x - origin.x, relativeY = from.y - origin.y;
+    const distance = (relativeX * edgeY - relativeY * edgeX) / determinant;
+    const along = (relativeX * dy - relativeY * dx) / determinant;
+    if (distance >= 0 && distance < closest && along >= -1e-8 && along <= 1 + 1e-8) closest = distance;
+  }
+  return closest;
+}
+
+export function canTraverseArena(edges: readonly ArenaEdge[], from: ArenaPoint, to: ArenaPoint, radius: number): boolean {
+  if (!containsArenaPoint(edges, to, radius)) return false;
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+  if (!distance) return true;
+  if (arenaBoundaryDistance(edges, from, dx / distance, dy / distance, distance) < distance) return false;
+  const travel = { from, to };
+  const radiusSquared = radius ** 2;
+  return edges.every(edge => pointEdgeDistanceSquared(edge.from, travel) >= radiusSquared);
+}
+
+export function insetArenaEdge({ from, to }: ArenaEdge, along: number, inset: number): ArenaPoint {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  return { x: from.x + dx * along - dy * inset / length, y: from.y + dy * along + dx * inset / length };
+}
+
 const layouts = new Map<string, ProvinceArena>();
 
 export function getProvinceArena(territoryId: string): ProvinceArena {
@@ -71,9 +103,9 @@ export function getProvinceArena(territoryId: string): ProvinceArena {
   const minY = Math.min(...frame.map(point => point.y));
   const spanX = Math.max(...frame.map(point => point.x)) - minX;
   const spanY = Math.max(...frame.map(point => point.y)) - minY;
-  const scale = 2304 / Math.max(spanX, spanY);
-  const width = Math.max(480, Math.ceil(spanX * scale + 96));
-  const height = Math.max(480, Math.ceil(spanY * scale + 96));
+  const scale = (arenaMaxDimension - 96) / Math.max(spanX, spanY);
+  const width = Math.max(480, Math.round(spanX * scale + 96));
+  const height = Math.max(480, Math.round(spanY * scale + 96));
   const transform = ({ x, y }: ArenaPoint) => ({
     x: (x - minX) * scale + (width - spanX * scale) / 2,
     y: (y - minY) * scale + (height - spanY * scale) / 2,

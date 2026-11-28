@@ -34,7 +34,7 @@ function App() {
   const [editedFlag, setEditedFlag] = useState<FlagColors | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string; sideName: string } | null>(null);
+  const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; province: Province; sideName: string } | null>(null);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
   const [territoryId, setTerritoryId] = useState("");
   const [provinceError, setProvinceError] = useState("");
@@ -200,7 +200,7 @@ function App() {
         return;
       }
       arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
-      setArena({ room: arenaRoom, territoryName: province.name, sideName: side.name });
+      setArena({ room: arenaRoom, province, sideName: side.name });
     } catch {
       if (pendingEntry.current === entry) setProvinceError("Could not enter the arena. Try again from this province.");
     } finally {
@@ -240,7 +240,7 @@ function App() {
       <main className="arena-screen">
         <header className="arena-header">
           <div>
-            <h1>{arena.territoryName} arena</h1>
+            <h1>{arena.province.name} arena</h1>
             <p role="status">You joined {arena.sideName}.</p>
           </div>
           <button type="button" onClick={() => setArena(null)}>Return to world map</button>
@@ -248,7 +248,7 @@ function App() {
         </header>
         <div className="arena-stage">
           <Suspense fallback={<p role="status">Loading arena…</p>}>
-            <ArenaView room={arena.room} factions={factions} />
+            <ArenaView room={arena.room} factions={factions} provinceId={arena.province.id} />
           </Suspense>
         </div>
       </main>

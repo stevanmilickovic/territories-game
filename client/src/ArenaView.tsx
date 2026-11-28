@@ -3,13 +3,13 @@ import Phaser from "phaser";
 import { useEffect, useRef } from "react";
 import { ArenaInput, type ArenaState } from "../../shared/src/arena-schema";
 import {
-  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
+  arenaCaptureRadius, arenaCaptureTicks, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
   arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena";
 import type { Faction } from "../../shared/src/factions.ts";
+import { arenaBoundaryDistance, getProvinceArena } from "../../shared/src/province-arena";
 
-const { width, height } = arenaLayout;
 const viewportSize = 480;
 const weaponSlot = new Phaser.Geom.Rectangle(viewportSize / 2 - 36, viewportSize - 52, 72, 40);
 const itemHitRadius = 10;
@@ -20,9 +20,10 @@ const playerInterpolation = {
   aim: { mode: "lerp", angle: true },
 } as const;
 
-export default function ArenaView({ room, factions }: {
+export default function ArenaView({ room, factions, provinceId }: {
   room: Room<unknown, ArenaState>;
   factions: readonly Faction[];
+  provinceId: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const currentFactions = useRef(factions);
@@ -34,6 +35,8 @@ export default function ArenaView({ room, factions }: {
   useEffect(() => {
     const parent = host.current;
     if (!parent) return;
+    const layout = getProvinceArena(provinceId);
+    const { width, height, capturePoint } = layout;
     const predict = Predict.get(room, { mode: "lerp", delay: 100 });
     const input = room.input({ type: ArenaInput });
     let audio: AudioContext | undefined;
@@ -61,15 +64,38 @@ export default function ArenaView({ room, factions }: {
         origin: ArenaPoint;
         aim: number;
         startedAt: number;
+        range: number;
       }>();
 
       create() {
         this.cameras.main.setBounds(0, 0, width, height);
+        const terrain = this.textures.createCanvas("province-terrain", width, height);
+        if (!terrain) throw new Error("Could not create the province terrain texture.");
+        const context = terrain.getContext();
+        const boundary = new Path2D();
+        for (const ring of layout.rings) {
+          boundary.moveTo(ring[0].x, ring[0].y);
+          for (const point of ring.slice(1)) boundary.lineTo(point.x, point.y);
+          boundary.closePath();
+        }
+        context.fillStyle = "#263c34";
+        context.fill(boundary, "evenodd");
+        context.save();
+        context.clip(boundary, "evenodd");
+        context.beginPath();
+        for (let x = 32; x < width; x += 32) { context.moveTo(x, 0); context.lineTo(x, height); }
+        for (let y = 32; y < height; y += 32) { context.moveTo(0, y); context.lineTo(width, y); }
+        context.strokeStyle = "#41584d";
+        context.stroke();
+        context.restore();
+        context.strokeStyle = "#77988b";
+        context.lineWidth = 2;
+        context.stroke(boundary);
+        terrain.refresh();
+        this.add.image(0, 0, terrain).setOrigin(0);
+
         const floor = this.add.graphics();
-        floor.lineStyle(1, 0x41584d);
-        for (let x = 32; x < width; x += 32) floor.lineBetween(x, 0, x, height);
-        for (let y = 32; y < height; y += 32) floor.lineBetween(0, y, width, y);
-        floor.lineStyle(2, 0xaabc95).strokeCircle(width / 2, height / 2, arenaCaptureRadius);
+        floor.lineStyle(2, 0xaabc95).strokeCircle(capturePoint.x, capturePoint.y, arenaCaptureRadius);
         this.markers = this.add.graphics();
         const hudStyle = { fontFamily: "sans-serif", fontSize: "15px", color: "#e8eddf" };
         this.hud = this.add.text(12, 12, "", hudStyle).setScrollFactor(0).setDepth(2);
@@ -202,7 +228,7 @@ export default function ArenaView({ room, factions }: {
             smoothMs: 65,
             step: ({ dt }, player, command) => {
               if (localPlayer.health > 0 && command.life === localPlayer.life) {
-                Object.assign(player, stepArenaMovement(player, command, dt));
+                Object.assign(player, stepArenaMovement(player, command, dt, layout));
               }
             },
           });
@@ -263,9 +289,12 @@ export default function ArenaView({ room, factions }: {
           if (input.data.fire && this.shotCooldown === 0) {
             this.shotCooldown = arenaWeapon.shotIntervalTicks;
             predictedShot = true;
+            const origin = { x: predict.value(localPlayer, "x"), y: predict.value(localPlayer, "y") };
+            const aim = predict.value(localPlayer, "aim");
             this.predictedProjectiles.set(input.sentCount, {
-              origin: { x: predict.value(localPlayer, "x"), y: predict.value(localPlayer, "y") },
-              aim: predict.value(localPlayer, "aim"),
+              origin,
+              aim,
+              range: arenaBoundaryDistance(layout.edges, origin, Math.cos(aim), Math.sin(aim), arenaWeapon.range),
               startedAt: now,
             });
           }
@@ -350,12 +379,12 @@ export default function ArenaView({ room, factions }: {
         }
 
         this.markers.fillStyle(0xffefae);
-        for (const [sequence, { origin, aim, startedAt }] of this.predictedProjectiles) {
+        for (const [sequence, { origin, aim, startedAt, range }] of this.predictedProjectiles) {
           const distance = (now - startedAt) * arenaWeapon.projectileSpeed / 1000;
           const x = origin.x + Math.cos(aim) * distance;
           const y = origin.y + Math.sin(aim) * distance;
           if (sequence <= input.lastProcessed || room.state.projectiles.has(`${room.sessionId}:${sequence}`)
-            || distance > arenaWeapon.range || x < 0 || x > width || y < 0 || y > height) {
+            || distance > range) {
             this.predictedProjectiles.delete(sequence);
             continue;
           }
@@ -372,7 +401,7 @@ export default function ArenaView({ room, factions }: {
       parent,
       width: viewportSize,
       height: viewportSize,
-      backgroundColor: "#263c34",
+      backgroundColor: "#163f49",
       scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
       audio: { noAudio: true },
       scene: ArenaScene,
@@ -382,7 +411,7 @@ export default function ArenaView({ room, factions }: {
       game.destroy(true);
       void audio?.close().catch(() => {});
     };
-  }, [room]);
+  }, [room, provinceId]);
 
   return (
     <div

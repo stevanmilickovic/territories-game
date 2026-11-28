@@ -1,10 +1,11 @@
 import { ErrorCode, Room, ServerError, type Client } from "colyseus";
 import {
-  arenaCaptureRadius, arenaCaptureTicks, arenaLayout, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
+  arenaCaptureRadius, arenaCaptureTicks, arenaSpawnInset, arenaMaxHealth, arenaPickupRadius, arenaPlayerRadius,
   arenaRespawnDelayMs, arenaTickRate, arenaWeapon, stepArenaMovement,
   type ArenaPoint, type ArenaShot,
 } from "../../shared/src/arena.ts";
 import { ArenaGroundItem, ArenaInput, ArenaPlayer, ArenaProjectile, ArenaState } from "../../shared/src/arena-schema.ts";
+import { arenaMaxDimension, arenaBoundaryDistance, containsArenaPoint, getProvinceArena, insetArenaEdge, type ProvinceArena } from "../../shared/src/province-arena.ts";
 
 type ArenaMember = { guestSessionId: string; displayName: string; factionId: string; color: string };
 type ArenaClient = Client<{ auth: ArenaMember }>;
@@ -20,23 +21,6 @@ type Projectile = {
   remainingDistance: number;
 };
 
-const { width, height, edgeInset } = arenaLayout;
-const centerSpawn: ArenaPoint = { x: width / 2, y: height / 2 };
-
-function edgeSpawn(index: number): ArenaPoint {
-  // Spread successive spawns across all four edges without imposing a faction cap.
-  const along = (0.5 + Math.floor(index / 4) * 0.61803398875) % 1;
-  const x = edgeInset + along * (width - 2 * edgeInset);
-  const y = edgeInset + along * (height - 2 * edgeInset);
-
-  switch (index % 4) {
-    case 0: return { x, y: edgeInset };
-    case 1: return { x: width - edgeInset, y };
-    case 2: return { x, y: height - edgeInset };
-    default: return { x: edgeInset, y };
-  }
-}
-
 export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInput; state: ArenaState }> {
   // The world room reuses the same arena even when all players return to the map.
   autoDispose = false;
@@ -46,11 +30,12 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     sanitize: {
       moveX: [-1, 1],
       moveY: [-1, 1],
-      aimX: [0, width],
-      aimY: [0, height],
+      aimX: [0, arenaMaxDimension],
+      aimY: [0, arenaMaxDimension],
     },
   });
   private readonly edgeSpawns = new Map<string, ArenaPoint>();
+  private layout!: ProvinceArena;
   private projectiles: Projectile[] = [];
   private readonly nextShotTick = new Map<string, number>();
   private readonly pendingRespawns = new Map<string, number>();
@@ -99,7 +84,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     return false;
   }
 
-  async onCreate({ ownerFactionId = null }: { ownerFactionId?: string | null }) {
+  async onCreate({ territoryId, ownerFactionId = null }: { territoryId: string; ownerFactionId?: string | null }) {
+    this.layout = getProvinceArena(territoryId);
     this.state.ownerFactionId = ownerFactionId ?? "";
     await this.setPrivate();
     this.setFixedTimestep(({ dt, tick }) => {
@@ -114,8 +100,8 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     let holdingFactionId = "";
     for (const player of state.players.values()) {
       if (player.health === 0) continue;
-      const dx = player.x - centerSpawn.x;
-      const dy = player.y - centerSpawn.y;
+      const dx = player.x - this.layout.capturePoint.x;
+      const dy = player.y - this.layout.capturePoint.y;
       if (dx * dx + dy * dy > arenaCaptureRadius ** 2) continue;
       if (holdingFactionId && holdingFactionId !== player.factionId) {
         state.captureContested = true;
@@ -163,7 +149,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
         continue;
       }
       if (!input || input.life !== player.life) continue;
-      Object.assign(player, stepArenaMovement(player, input, dt));
+      Object.assign(player, stepArenaMovement(player, input, dt, this.layout));
       if (input.fire && player.equippedWeaponId === arenaWeapon.id && tick >= (this.nextShotTick.get(sessionId) ?? 0)) {
         this.nextShotTick.set(sessionId, tick + arenaWeapon.shotIntervalTicks);
         this.spawnProjectile(sessionId, player, channel.consumedCount);
@@ -175,8 +161,6 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
     const { x, y, aim, factionId } = shooter;
     const directionX = Math.cos(aim);
     const directionY = Math.sin(aim);
-    const distanceToXEdge = directionX === 0 ? Infinity : ((directionX > 0 ? width : 0) - x) / directionX;
-    const distanceToYEdge = directionY === 0 ? Infinity : ((directionY > 0 ? height : 0) - y) / directionY;
     const id = `${shooterId}:${inputSequence}`;
     const position = new ArenaProjectile({ x, y });
     this.state.projectiles.set(id, position);
@@ -188,7 +172,7 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
       position,
       directionX,
       directionY,
-      remainingDistance: Math.min(arenaWeapon.range, distanceToXEdge, distanceToYEdge),
+      remainingDistance: arenaBoundaryDistance(this.layout.edges, shooter, directionX, directionY, arenaWeapon.range),
     });
   }
 
@@ -237,8 +221,12 @@ export class TerritoryArena extends Room<{ client: ArenaClient; input: ArenaInpu
   }
 
   private getSpawn({ factionId }: ArenaMember): ArenaPoint {
-    if (this.state.ownerFactionId === factionId) return centerSpawn;
-    const spawn = this.edgeSpawns.get(factionId) ?? edgeSpawn(this.edgeSpawns.size);
+    if (this.state.ownerFactionId === factionId) return this.layout.capturePoint;
+    const known = this.edgeSpawns.get(factionId);
+    if (known) return known;
+    const points = this.layout.edges.map(edge => insetArenaEdge(edge, 0.5, arenaSpawnInset))
+      .filter(point => containsArenaPoint(this.layout.edges, point, arenaPlayerRadius));
+    const spawn = points[Math.floor(Math.random() * points.length)] ?? this.layout.capturePoint;
     this.edgeSpawns.set(factionId, spawn);
     return spawn;
   }
