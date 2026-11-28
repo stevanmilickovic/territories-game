@@ -6,6 +6,7 @@ import { placeTerritoryCenters } from "../shared/src/territory-centers.ts";
 import { assignTerrainTerritories } from "../shared/src/terrain-territories.ts";
 import { traceBorderPaths, type Point } from "./trace-world-map-borders.mts";
 import { simplifyBorder } from "./simplify-world-map-border.mts";
+import { roundedBorderPath } from "./round-world-map-border.mts";
 
 type Edge = { to: number; direction: number };
 
@@ -174,13 +175,13 @@ const borderPaths = boundaries.map(({ kind, labels, points }) => {
   const [startX, startY] = points[0];
   const [endX, endY] = points[points.length - 1];
   const closed = startX === endX && startY === endY;
-  const toPath = (line: Point[]) => closed ? svgLine(line.slice(0, -1)) + "Z" : svgLine(line);
+  const path = closed ? svgLine(points.slice(0, -1)) + "Z" : svgLine(points);
   return {
     kind,
     territoryIds: labels.map(idFor),
-    path: toPath(points),
+    path,
     // The map still draws the grid paths alongside its grid-based province fills.
-    simplifiedPath: toPath(kind === "map-edge" ? points : simplifyBorder(points, width, height)),
+    curvedPath: kind === "map-edge" ? path : roundedBorderPath(simplifyBorder(points, width, height), width, height),
   };
 });
 
