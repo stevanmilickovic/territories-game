@@ -38,36 +38,13 @@ class WorldRoom extends Room {
   private readonly arenasByTerritory = new Map<string, ReturnType<typeof matchMaker.createRoom>>();
 
   messages = {
-    startChallenge: (client: WorldClient, territoryId: unknown): StartChallengeResult => {
-      const faction = this.factionsByFounder.get(client.sessionId);
-      if (!faction) {
-        return { ok: false, error: "Found a faction before challenging a territory." };
-      }
+    startChallenge: (client: WorldClient, territoryId: unknown): StartChallengeResult => this.recordChallenge(client, territoryId),
 
-      const territory = worldMap.territories.find((territory) => territory.id === territoryId);
-      if (!territory) {
-        return { ok: false, error: "Choose a valid territory." };
-      }
-
-      if (!canAttackTerritory(faction.id, territory, this.ownership)) {
-        return { ok: false, error: "Choose an adjacent territory your faction does not own." };
-      }
-
-      const challenges = this.challengesByTerritory.get(territory.id)
-        ?? new Map<string, TerritoryChallenge>();
-      if (challenges.has(faction.id)) {
-        return { ok: false, error: "Your faction has already challenged this territory." };
-      }
-
-      const challenge = {
-        territoryId: territory.id,
-        challengerFactionId: faction.id,
-        readyAt: Date.now() + gatheringWindowMs,
-      };
-      challenges.set(faction.id, challenge);
-      this.challengesByTerritory.set(territory.id, challenges);
-      this.broadcast("territoryActivity", this.getTerritoryActivity());
-      return { ok: true, challenge };
+    declareAndEnter: async (client: WorldClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
+      if (!client.auth) return { ok: false, error: "Join the world again before entering an arena." };
+      const result = this.recordChallenge(client, territoryId);
+      if (!result.ok) return result;
+      return this.enterArena(client, result.challenge.territoryId, result.challenge.challengerFactionId);
     },
 
     enterArena: async (client: WorldClient, payload: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
@@ -76,44 +53,7 @@ class WorldRoom extends Room {
         || typeof payload.territoryId !== "string" || !this.ownership.has(payload.territoryId)) {
         return { ok: false, error: "Choose a valid territory." };
       }
-      const { territoryId } = payload;
-      const factionId = "factionId" in payload ? payload.factionId : undefined;
-      const faction = [...this.factionsByFounder.values()].find(({ id }) => id === factionId);
-      if (!faction) return { ok: false, error: "Choose a valid faction." };
-
-      const entryError = this.getArenaEntryError(territoryId, client.sessionId, faction.id);
-      if (entryError) return { ok: false, error: entryError };
-
-      let arena = this.arenasByTerritory.get(territoryId);
-      if (!arena) {
-        arena = matchMaker.createRoom("territoryArena", {
-          territoryId,
-          ownerFactionId: this.ownership.get(territoryId),
-        }).then((listing) => {
-          const room = matchMaker.getLocalRoomById(listing.roomId);
-          if (!(room instanceof TerritoryArena)) throw new Error("Territory arena must be local.");
-          room.onTerritoryCaptured = (factionId) => this.applyCapture(territoryId, factionId);
-          room.onArenaEmpty = () => {
-            if (this.challengesByTerritory.delete(territoryId)) {
-              this.broadcast("territoryActivity", this.getTerritoryActivity());
-            }
-          };
-          room.getEntryError = (guestSessionId, factionId) => this.getArenaEntryError(territoryId, guestSessionId, factionId);
-          return listing;
-        }).catch((error: unknown) => {
-          this.arenasByTerritory.delete(territoryId);
-          throw error;
-        });
-        this.arenasByTerritory.set(territoryId, arena);
-      }
-
-      const reservation = await matchMaker.reserveSeatFor(await arena, {}, {
-        guestSessionId: client.sessionId,
-        displayName: client.auth.displayName,
-        factionId: faction.id,
-        color: faction.color,
-      });
-      return { ok: true, reservation };
+      return this.enterArena(client, payload.territoryId, "factionId" in payload ? payload.factionId : undefined);
     },
 
     createFaction: (client: WorldClient, payload: unknown): FactionResult => {
@@ -151,6 +91,69 @@ class WorldRoom extends Room {
       return this.saveFaction(client.sessionId, { ...faction, flag });
     },
   };
+
+  private recordChallenge(client: WorldClient, territoryId: unknown): StartChallengeResult {
+    const faction = this.factionsByFounder.get(client.sessionId);
+    if (!faction) return { ok: false, error: "Found a faction before challenging a territory." };
+    const territory = worldMap.territories.find(({ id }) => id === territoryId);
+    if (!territory) return { ok: false, error: "Choose a valid territory." };
+
+    const challenges = this.challengesByTerritory.get(territory.id) ?? new Map<string, TerritoryChallenge>();
+    const existing = challenges.get(faction.id);
+    if (existing) return { ok: true, challenge: existing };
+    if (!canAttackTerritory(faction.id, territory, this.ownership)) {
+      return { ok: false, error: "Choose an adjacent territory your faction does not own." };
+    }
+
+    const challenge = { territoryId: territory.id, challengerFactionId: faction.id, readyAt: Date.now() + gatheringWindowMs };
+    challenges.set(faction.id, challenge);
+    this.challengesByTerritory.set(territory.id, challenges);
+    this.broadcast("territoryActivity", this.getTerritoryActivity());
+    return { ok: true, challenge };
+  }
+
+  private async enterArena(client: WorldClient, territoryId: string, factionId: unknown): Promise<ArenaEntryResult<ArenaReservation>> {
+    if (!client.auth) return { ok: false, error: "Join the world again before entering an arena." };
+    const faction = [...this.factionsByFounder.values()].find(({ id }) => id === factionId);
+    if (!faction) return { ok: false, error: "Choose a valid faction." };
+    const entryError = this.getArenaEntryError(territoryId, client.sessionId, faction.id);
+    if (entryError) return { ok: false, error: entryError };
+
+    let arena = this.arenasByTerritory.get(territoryId);
+    if (!arena) {
+      arena = matchMaker.createRoom("territoryArena", {
+        territoryId,
+        ownerFactionId: this.ownership.get(territoryId),
+      }).then((listing) => {
+        const room = matchMaker.getLocalRoomById(listing.roomId);
+        if (!(room instanceof TerritoryArena)) throw new Error("Territory arena must be local.");
+        room.onTerritoryCaptured = (factionId) => this.applyCapture(territoryId, factionId);
+        room.onArenaEmpty = () => {
+          if (this.challengesByTerritory.delete(territoryId)) {
+            this.broadcast("territoryActivity", this.getTerritoryActivity());
+          }
+        };
+        room.getEntryError = (guestSessionId, factionId) => this.getArenaEntryError(territoryId, guestSessionId, factionId);
+        return listing;
+      }).catch((error: unknown) => {
+        this.arenasByTerritory.delete(territoryId);
+        throw error;
+      });
+      this.arenasByTerritory.set(territoryId, arena);
+    }
+
+    try {
+      const reservation = await matchMaker.reserveSeatFor(await arena, {}, {
+        guestSessionId: client.sessionId,
+        displayName: client.auth.displayName,
+        factionId: faction.id,
+        color: faction.color,
+      });
+      return { ok: true, reservation };
+    } catch {
+      return { ok: false, error: "Could not reserve an arena seat. Try entering again." };
+    }
+  }
 
   private saveFaction(founderId: string, faction: Faction): FactionResult {
     this.factionsByFounder.set(founderId, faction);
