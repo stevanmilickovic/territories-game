@@ -237,20 +237,22 @@ function App() {
 
   if (arena) {
     return (
-      <main className="arena-screen">
-        <header className="arena-header">
-          <div>
-            <h1>{arena.province.name} arena</h1>
-            <p role="status">You joined {arena.sideName}.</p>
+      <main className="world-screen">
+        <section className="world" aria-label="Battle">
+          <div className="world-map-stage">
+            <Suspense fallback={<p role="status">Loading arena…</p>}>
+              <ArenaView room={arena.room} factions={factions} provinceId={arena.province.id} />
+            </Suspense>
           </div>
-          <button type="button" onClick={() => setArena(null)}>Return to world map</button>
-          <p className="arena-controls">Move with WASD. Hold left click to fire. Drag your weapon out to drop it. Click a nearby weapon to pick it up.</p>
-        </header>
-        <div className="arena-stage">
-          <Suspense fallback={<p role="status">Loading arena…</p>}>
-            <ArenaView room={arena.room} factions={factions} provinceId={arena.province.id} />
-          </Suspense>
-        </div>
+          <div className="world-side world-side-left">
+            <header className="world-identity">
+              <h1>{arena.province.name}</h1>
+              <p role="status">You joined {arena.sideName}.</p>
+            </header>
+            <button type="button" onClick={() => setArena(null)}>Return to world map</button>
+            <p className="arena-controls">Move with WASD. Hold left click to fire. Drag your weapon out to drop it. Click a nearby weapon to pick it up.</p>
+          </div>
+        </section>
       </main>
     );
   }

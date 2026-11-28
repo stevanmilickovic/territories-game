@@ -35,7 +35,7 @@ header p { color: #b7c7b9; }
   min-height: 100dvh;
   padding: 0;
   display: grid;
-  place-items: center;
+  place-items: start center;
 }
 
 .world {
@@ -64,6 +64,8 @@ header p { color: #b7c7b9; }
 .world-side-right { grid-area: right; }
 
 @media (min-width: 68rem) {
+  .world-screen { place-items: center; }
+
   .world {
     --map-size: min(100dvh, calc(100vw - 40rem));
     width: 100%;
@@ -203,37 +205,16 @@ header p { color: #b7c7b9; }
   stroke-linejoin: round;
 }
 
-.arena-screen {
-  height: 100dvh;
-  min-height: 18rem;
-  padding: 0.5rem;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.5rem;
-}
-
-.arena-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem 1rem;
-  padding: 0 0 0.5rem;
-}
-
-.arena-header h1 { font-size: clamp(1.1rem, 3vw, 1.5rem); }
-.arena-controls { flex-basis: 100%; font-size: 0.875rem; }
-
-.arena-stage {
-  container-type: size;
-  display: grid;
-  place-items: center;
-}
+.arena-controls { font-size: 0.875rem; }
 
 .arena-canvas {
-  width: min(100cqw, 100cqh);
+  width: 100%;
   aspect-ratio: 1;
+  min-height: 0;
+  overflow: hidden;
 }
+
+.arena-canvas canvas { display: block; }
 
 fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
 label { display: grid; gap: 0.35rem; }
