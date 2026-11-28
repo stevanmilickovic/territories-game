@@ -300,11 +300,12 @@ function App() {
             <path className="map-border-halo" d={visibleBorders} />
             <path d={visibleBorders} />
           </g>
-          {worldMap.territories.map(({ id, name, labelAnchor: [x, y] }) => (
+          {worldMap.territories.map(({ id, name, labelAnchor: [x, y], labelFontSize }) => (
             <text
               key={id}
-              x={Math.max(13, Math.min(worldMap.width - 13, x))}
-              y={Math.max(6, Math.min(worldMap.height - 3, y))}
+              x={x}
+              y={y}
+              style={{ fontSize: labelFontSize }}
               textAnchor="middle"
               aria-hidden="true"
             >

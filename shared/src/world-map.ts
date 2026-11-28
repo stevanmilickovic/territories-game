@@ -5,7 +5,7 @@ export const worldMap = {
   "territories": [
     {
       "id": "province-01",
-      "name": "Province 1",
+      "name": "Flintwatch",
       "seed": [
         68.5,
         26.5
@@ -25,7 +25,7 @@ export const worldMap = {
     },
     {
       "id": "province-02",
-      "name": "Province 2",
+      "name": "Rillmark",
       "seed": [
         96.5,
         48.5
@@ -44,7 +44,7 @@ export const worldMap = {
     },
     {
       "id": "province-03",
-      "name": "Province 3",
+      "name": "Alderreach",
       "seed": [
         52.5,
         78.5
@@ -64,7 +64,7 @@ export const worldMap = {
     },
     {
       "id": "province-04",
-      "name": "Province 4",
+      "name": "Dunmere",
       "seed": [
         20.5,
         97.5
@@ -82,15 +82,16 @@ export const worldMap = {
     },
     {
       "id": "province-05",
-      "name": "Province 5",
+      "name": "Gullstrand",
       "seed": [
         157.5,
         121.5
       ],
       "labelAnchor": [
-        149.5,
-        95.5
+        149,
+        94.5
       ],
+      "labelFontSize": 3.5,
       "neighborIds": [
         "province-07"
       ],
@@ -99,7 +100,7 @@ export const worldMap = {
     },
     {
       "id": "province-06",
-      "name": "Province 6",
+      "name": "Tarnwick",
       "seed": [
         108.5,
         124.5
@@ -118,7 +119,7 @@ export const worldMap = {
     },
     {
       "id": "province-07",
-      "name": "Province 7",
+      "name": "Saltvenn",
       "seed": [
         140.5,
         153.5
@@ -136,7 +137,7 @@ export const worldMap = {
     },
     {
       "id": "province-08",
-      "name": "Province 8",
+      "name": "Greyfen",
       "seed": [
         110.5,
         19.5
@@ -154,7 +155,7 @@ export const worldMap = {
     },
     {
       "id": "province-09",
-      "name": "Province 9",
+      "name": "Brackenholt",
       "seed": [
         68.5,
         128.5
@@ -174,7 +175,7 @@ export const worldMap = {
     },
     {
       "id": "province-10",
-      "name": "Province 10",
+      "name": "High Tor",
       "seed": [
         84.5,
         78.5

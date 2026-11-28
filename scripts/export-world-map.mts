@@ -157,7 +157,15 @@ function labelAnchor(cells: readonly number[], label: number, center: Point): Po
   return [anchor % width + 0.5, Math.floor(anchor / width) + 0.5];
 }
 
-assert.equal(centers.length, 10);
+const provinceNames = [
+  "Flintwatch", "Rillmark", "Alderreach", "Dunmere", "Gullstrand",
+  "Tarnwick", "Saltvenn", "Greyfen", "Brackenholt", "High Tor",
+];
+const labelPlacements: Readonly<Partial<Record<string, { anchor: Point; fontSize: number }>>> = {
+  // Gullstrand is narrow between the coast and the eastern map edge.
+  "province-05": { anchor: [149, 94.5], fontSize: 3.5 },
+};
+assert.equal(centers.length, provinceNames.length);
 for (const [index, label] of labels.entries()) {
   assert.equal(Boolean(label), Boolean(continent.land[index]), "Land must be assigned and water must be unassigned.");
 }
@@ -200,11 +208,14 @@ const territories = centers.map(({ x, y }, index) => {
   validateOutline(rings, label);
   const path = outlines.get(label);
   assert.ok(path, `Province ${label} needs an outline.`);
+  const id = idFor(label);
+  const placement = labelPlacements[id];
   return {
-    id: idFor(label),
-    name: `Province ${label}`,
+    id,
+    name: provinceNames[index],
     seed: [x + 0.5, y + 0.5],
-    labelAnchor: labelAnchor(queue, label, [x, y]),
+    labelAnchor: placement?.anchor ?? labelAnchor(queue, label, [x, y]),
+    labelFontSize: placement?.fontSize,
     neighborIds: [...neighborsByLabel[label]].sort((a, b) => a - b).map(idFor),
     path,
     ownerFactionId: null,
