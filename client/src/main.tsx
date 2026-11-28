@@ -21,6 +21,7 @@ const visibleBorders = worldMap.borderPaths
 const provinceLabels = worldMap.territories.map(({ id, name, labelAnchor, labelFontSize }) => ({
   id, name, anchor: [labelAnchor[0], labelAnchor[1]] as const, fontSize: labelFontSize, outlineIds: [id],
 }));
+type Province = (typeof worldMap.territories)[number];
 
 function App() {
   const [joinRequest, setJoinRequest] = useState<{ username?: string } | null>(null);
@@ -99,20 +100,29 @@ function App() {
   }, [arena]);
 
   const territory = worldMap.territories.find(({ id }) => id === territoryId);
-  const ownChallenge = activity?.challenges.find(
-    (challenge) => challenge.territoryId === territoryId && challenge.challengerFactionId === founded?.id,
-  );
-  const isOwner = Boolean(founded && activity?.owners[territoryId] === founded.id);
-  const canEnter = isOwner || Boolean(ownChallenge);
-  const canAttack = Boolean(founded && territory && activity && !ownChallenge && canAttackTerritory(
-    founded.id, territory, new Map(Object.entries(activity.owners)),
-  ));
+  const ownAction = territory && getOwnBattleAction(territory);
+  const canEnter = ownAction === "join";
+  const canAttack = ownAction === "attack";
   const creationFlag = factionFlag().map((color, index) => paintedCells[index] ?? color);
+
+  function getOwnBattleAction(province: Province): "join" | "attack" | undefined {
+    if (!founded || !activity) return;
+    if (activity.owners[province.id] === founded.id || activity.challenges.some(({ territoryId, challengerFactionId }) =>
+      territoryId === province.id && challengerFactionId === founded.id)) return "join";
+    if (canAttackTerritory(founded.id, province, new Map(Object.entries(activity.owners)))) return "attack";
+  }
 
   function selectProvince(id: string) {
     if (isSubmitting) return;
     setTerritoryId(id);
     setProvinceError("");
+  }
+
+  function doubleClickProvince(province: Province) {
+    const action = getOwnBattleAction(province);
+    if (!founded || !action || isSubmitting || pendingEntry.current) return;
+    selectProvince(province.id);
+    void actOnTerritory(action === "attack" ? "attack" : founded, province);
   }
 
   function joinWorld(username?: string) {
@@ -167,10 +177,10 @@ function App() {
     }
   }
 
-  async function actOnTerritory(action: "attack" | Faction) {
-    if (!room || !territory || isSubmitting || pendingEntry.current) return;
+  async function actOnTerritory(action: "attack" | Faction, province = territory) {
+    if (!room || !province || isSubmitting || pendingEntry.current) return;
     const side = action === "attack" ? founded : action;
-    if (!side || (action === "attack" && !canAttack)) return;
+    if (!side || (action === "attack" && getOwnBattleAction(province) !== "attack")) return;
 
     const entry = Symbol();
     pendingEntry.current = entry;
@@ -178,8 +188,8 @@ function App() {
     setProvinceError("");
     try {
       const result: ArenaEntryResult<SeatReservation> = action === "attack"
-        ? await room.request("declareAndEnter", territory.id)
-        : await room.request("enterArena", { territoryId: territory.id, factionId: side.id });
+        ? await room.request("declareAndEnter", province.id)
+        : await room.request("enterArena", { territoryId: province.id, factionId: side.id });
       if (pendingEntry.current !== entry) return;
       if (!result.ok) {
         setProvinceError(result.error);
@@ -191,7 +201,7 @@ function App() {
         return;
       }
       arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
-      setArena({ room: arenaRoom, territoryName: territory.name, sideName: side.name });
+      setArena({ room: arenaRoom, territoryName: province.name, sideName: side.name });
     } catch {
       if (pendingEntry.current === entry) setProvinceError("Could not enter the arena. Try again from this province.");
     } finally {
@@ -292,23 +302,24 @@ function App() {
             role="group"
             aria-label="Select a province"
           >
-            {territories.map(({ id, name, path, owner, challenges }) => (
+            {territories.map(({ owner, challenges, ...province }) => (
               <path
-                key={id}
-                id={id}
+                key={province.id}
+                id={province.id}
                 className="territory-shape"
-                d={path}
+                d={province.path}
                 fillRule="evenodd"
                 style={{ fill: owner?.color }}
                 role="button"
                 tabIndex={0}
-                aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}${challenges.length ? ", contested" : ""}`}
-                aria-pressed={id === territoryId}
-                onClick={() => selectProvince(id)}
+                aria-label={`${province.name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}${challenges.length ? ", contested" : ""}`}
+                aria-pressed={province.id === territoryId}
+                onClick={() => selectProvince(province.id)}
+                onDoubleClick={() => doubleClickProvince(province)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  selectProvince(id);
+                  selectProvince(province.id);
                 }}
               />
             ))}
