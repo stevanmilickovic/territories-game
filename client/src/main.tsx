@@ -7,6 +7,7 @@ import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "
 import type { FactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
 import { MapLabels } from "./MapLabels";
+import { FactionFlag } from "./FactionFlag";
 import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
@@ -365,10 +366,17 @@ function App() {
         </div>
         <div className="world-side world-side-right">
           <details className="world-overlay" name="world-controls">
-            <summary>Factions</summary>
+            <summary>Faction</summary>
             <div className="overlay-content">
               {founded ? (
-                <p role="status">You founded <strong>{founded.name}</strong>.</p>
+                <div className="faction-profile">
+                  <FactionFlag faction={founded} />
+                  <strong>{founded.name}</strong>
+                  <span className="faction-color">
+                    <span className="swatch" style={{ backgroundColor: founded.color }} aria-hidden="true" />
+                    {founded.color}
+                  </span>
+                </div>
               ) : (
                 <form onSubmit={createFaction}>
                   <fieldset disabled={!room || isSubmitting}>
@@ -385,18 +393,6 @@ function App() {
                 </form>
               )}
               {error && <p role="alert">{error}</p>}
-              <div className="faction-list" aria-live="polite">
-                {factions.length === 0 ? <p>No factions yet.</p> : (
-                  <ul aria-label="Founded factions">
-                    {factions.map(({ id, name, color }) => (
-                      <li key={id}>
-                        <span className="swatch" style={{ backgroundColor: color }} aria-hidden="true" />
-                        {name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             </div>
           </details>
         </div>
