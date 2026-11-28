@@ -13,7 +13,6 @@ import { TerritoryArena } from "./territory-arena.ts";
 
 type WorldClient = Client<{ auth: { displayName: string } }>;
 type ArenaReservation = Awaited<ReturnType<typeof matchMaker.reserveSeatFor>>;
-const gatheringWindowMs = 0; // Skip the gathering delay during local playtesting.
 const hexColor = /^#[0-9a-f]{6}$/i;
 const invalidFlag = "Use 36 six-digit hex colors for the flag.";
 
@@ -38,8 +37,6 @@ class WorldRoom extends Room {
   private readonly arenasByTerritory = new Map<string, ReturnType<typeof matchMaker.createRoom>>();
 
   messages = {
-    startChallenge: (client: WorldClient, territoryId: unknown): StartChallengeResult => this.recordChallenge(client, territoryId),
-
     declareAndEnter: async (client: WorldClient, territoryId: unknown): Promise<ArenaEntryResult<ArenaReservation>> => {
       if (!client.auth) return { ok: false, error: "Join the world again before entering an arena." };
       const result = this.recordChallenge(client, territoryId);
@@ -105,7 +102,7 @@ class WorldRoom extends Room {
       return { ok: false, error: "Choose an adjacent territory your faction does not own." };
     }
 
-    const challenge = { territoryId: territory.id, challengerFactionId: faction.id, readyAt: Date.now() + gatheringWindowMs };
+    const challenge = { territoryId: territory.id, challengerFactionId: faction.id };
     challenges.set(faction.id, challenge);
     this.challengesByTerritory.set(territory.id, challenges);
     this.broadcast("territoryActivity", this.getTerritoryActivity());
@@ -169,7 +166,6 @@ class WorldRoom extends Room {
     if (this.ownership.get(territoryId) === factionId) return;
     const challenge = challenges?.get(factionId);
     if (!challenge) return "That faction is not contesting this territory.";
-    if (Date.now() < challenge.readyAt) return "That faction is still gathering.";
   }
 
   private applyCapture(territoryId: string, factionId: string) {
@@ -184,7 +180,6 @@ class WorldRoom extends Room {
       challenges.set(formerOwner, {
         territoryId,
         challengerFactionId: formerOwner,
-        readyAt: Date.now(),
       });
     }
     this.challengesByTerritory.set(territoryId, challenges);
@@ -194,7 +189,6 @@ class WorldRoom extends Room {
 
   private getTerritoryActivity(): TerritoryActivity {
     return {
-      serverTime: Date.now(),
       owners: Object.fromEntries(this.ownership),
       challenges: Array.from(this.challengesByTerritory.values()).flatMap(
         (challenges) => [...challenges.values()],

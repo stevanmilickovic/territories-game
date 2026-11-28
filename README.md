@@ -5,8 +5,8 @@ Territories Game is a planned browser multiplayer game where players form factio
 ## How it plays
 
 1. **Found a faction.** A player who wants to conquer territory creates a faction, gives it a name and color, and designs a flag on a 6 × 6 pixel grid. A territory can have at most one owning faction.
-2. **Challenge a territory.** A faction with no holdings can attack any territory. A faction that owns land can attack only territories adjacent to at least one of its holdings. Each attacking faction starts its own gathering window when it declares, including when a fight is already underway. A territory can sit idle until someone attacks.
-3. **Fight for control.** Each territory has one shared arena with a single central capture point. The owning faction can enter at any time and spawns near the center. When an attacking faction finishes gathering, it gets a virtual spawn point at the edge of that same arena, and its players spawn around it. Players can join their faction while the fight is underway. Capturing the central point transfers ownership, and fighting can continue as long as factions want to contest the territory.
+2. **Challenge a territory.** A faction with no holdings can attack any territory. A faction that owns land can attack only territories adjacent to at least one of its holdings. Declaring an attack takes the founder straight into battle, including when a fight is already underway. A territory can sit idle until someone attacks.
+3. **Fight for control.** Each territory has one shared arena with a single central capture point. The owning faction can enter at any time and spawns near the center. Each attacking faction gets a virtual spawn point at the edge of the arena. Players can join a side while the fight is underway. Capturing the central point transfers ownership, and fighting can continue as long as factions want to contest the territory.
 4. **Revisit the world map.** At a set time each day, the game saves a snapshot of territory ownership. Any player can open the history book and view the map from a previous day.
 
 ## Open design questions

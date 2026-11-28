@@ -1,7 +1,6 @@
 export type TerritoryChallenge = {
   territoryId: string;
   challengerFactionId: string;
-  readyAt: number;
 };
 
 export type StartChallengeResult =
@@ -13,7 +12,6 @@ export type ArenaEntryResult<Reservation> =
   | { ok: false; error: string };
 
 export type TerritoryActivity = {
-  serverTime: number;
   owners: Record<string, string | null>;
   challenges: TerritoryChallenge[];
 };

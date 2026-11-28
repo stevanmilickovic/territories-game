@@ -1,9 +1,9 @@
 import { Client, ErrorCode, type Room, type SeatReservation } from "@colyseus/sdk";
-import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { ArenaState } from "../../shared/src/arena-schema";
 import { canAttackTerritory } from "../../shared/src/attack-eligibility";
-import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
+import type { ArenaEntryResult, TerritoryActivity } from "../../shared/src/challenges.ts";
 import { factionFlag, type FactionFlag as FlagColors, type FactionResult, type Faction } from "../../shared/src/factions";
 import { worldMap } from "../../shared/src/world-map";
 import { MapLabels } from "./MapLabels";
@@ -35,11 +35,9 @@ function App() {
   const [error, setError] = useState("");
   const [arena, setArena] = useState<{ room: Room<unknown, ArenaState>; territoryName: string; sideName: string } | null>(null);
   const [activity, setActivity] = useState<TerritoryActivity | null>(null);
-  const [clockOffset, setClockOffset] = useState(0);
-  const [now, setNow] = useState(Date.now);
   const [territoryId, setTerritoryId] = useState("");
-  const [confirmingAttack, setConfirmingAttack] = useState(false);
   const [provinceError, setProvinceError] = useState("");
+  const pendingEntry = useRef<symbol | null>(null);
 
   useEffect(() => {
     if (!joinRequest) return;
@@ -59,10 +57,7 @@ function App() {
         });
         room.onMessage("territoryActivity", (snapshot: TerritoryActivity) => {
           if (!active) return;
-          const receivedAt = Date.now();
           setActivity(snapshot);
-          setClockOffset(snapshot.serverTime - receivedAt);
-          setNow(receivedAt);
         });
         room.onLeave(() => {
           if (!active) return;
@@ -74,7 +69,8 @@ function App() {
           setEditedFlag(null);
           setActivity(null);
           setTerritoryId("");
-          setConfirmingAttack(false);
+          pendingEntry.current = null;
+          setIsSubmitting(false);
           setProvinceError("");
           setError("");
           setJoinError("Disconnected from the world. Join again to continue.");
@@ -96,26 +92,18 @@ function App() {
   }, [joinRequest]);
 
   useEffect(() => {
-    if (!room) return;
-    const interval = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(interval);
-  }, [room]);
-
-  useEffect(() => {
     if (!arena) return;
     return () => {
       void arena.room.leave().catch(() => {});
     };
   }, [arena]);
 
-  const serverNow = now + clockOffset;
   const territory = worldMap.territories.find(({ id }) => id === territoryId);
   const ownChallenge = activity?.challenges.find(
     (challenge) => challenge.territoryId === territoryId && challenge.challengerFactionId === founded?.id,
   );
   const isOwner = Boolean(founded && activity?.owners[territoryId] === founded.id);
-  const isGathering = !isOwner && Boolean(ownChallenge && ownChallenge.readyAt > serverNow);
-  const canEnter = isOwner || Boolean(ownChallenge && !isGathering);
+  const canEnter = isOwner || Boolean(ownChallenge);
   const canAttack = Boolean(founded && territory && activity && !ownChallenge && canAttackTerritory(
     founded.id, territory, new Map(Object.entries(activity.owners)),
   ));
@@ -124,7 +112,6 @@ function App() {
   function selectProvince(id: string) {
     if (isSubmitting) return;
     setTerritoryId(id);
-    setConfirmingAttack(false);
     setProvinceError("");
   }
 
@@ -181,32 +168,37 @@ function App() {
   }
 
   async function actOnTerritory(action: "attack" | Faction) {
-    if (!room || !territory || isSubmitting) return;
-    if (action === "attack" && (!confirmingAttack || !canAttack)) return;
+    if (!room || !territory || isSubmitting || pendingEntry.current) return;
+    const side = action === "attack" ? founded : action;
+    if (!side || (action === "attack" && !canAttack)) return;
 
+    const entry = Symbol();
+    pendingEntry.current = entry;
     setIsSubmitting(true);
     setProvinceError("");
     try {
-      if (action !== "attack") {
-        const result: ArenaEntryResult<SeatReservation> = await room.request("enterArena", {
-          territoryId, factionId: action.id,
-        });
-        if (!result.ok) {
-          setProvinceError(result.error);
-          return;
-        }
-        const arenaRoom = await client.consumeSeatReservation(result.reservation, ArenaState);
-        arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
-        setArena({ room: arenaRoom, territoryName: territory.name, sideName: action.name });
-      } else {
-        const result: StartChallengeResult = await room.request("startChallenge", territoryId);
-        if (result.ok) setConfirmingAttack(false);
-        else setProvinceError(result.error);
+      const result: ArenaEntryResult<SeatReservation> = action === "attack"
+        ? await room.request("declareAndEnter", territory.id)
+        : await room.request("enterArena", { territoryId: territory.id, factionId: side.id });
+      if (pendingEntry.current !== entry) return;
+      if (!result.ok) {
+        setProvinceError(result.error);
+        return;
       }
+      const arenaRoom = await client.consumeSeatReservation(result.reservation, ArenaState);
+      if (pendingEntry.current !== entry) {
+        await arenaRoom.leave();
+        return;
+      }
+      arenaRoom.onLeave(() => setArena((current) => current?.room === arenaRoom ? null : current));
+      setArena({ room: arenaRoom, territoryName: territory.name, sideName: side.name });
     } catch {
-      setProvinceError("The server did not confirm your request. Try again if you’re still connected.");
+      if (pendingEntry.current === entry) setProvinceError("Could not enter the arena. Try again from this province.");
     } finally {
-      setIsSubmitting(false);
+      if (pendingEntry.current === entry) {
+        pendingEntry.current = null;
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -266,7 +258,6 @@ function App() {
     ? [
         selectedProvince.owner,
         ...selectedProvince.challenges
-          .filter(({ readyAt }) => readyAt <= serverNow)
           .map(({ challengerFactionId }) => factionsById.get(challengerFactionId)),
       ].filter((faction): faction is Faction => Boolean(faction && faction.id !== founded?.id))
     : [];
@@ -275,16 +266,15 @@ function App() {
     if (challenges.length === 0) return null;
     return (
       <ul className="province-challenges">
-        {challenges.map(({ challengerFactionId, readyAt }) => {
+        {challenges.map(({ challengerFactionId }) => {
           const faction = factionsById.get(challengerFactionId);
-          const seconds = Math.ceil((readyAt - serverNow) / 1000);
           return (
             <li key={challengerFactionId}>
               <span className="faction-display">
                 {faction && <FactionFlag faction={faction} />}
                 {faction?.name ?? "Attacking faction"}
               </span>
-              <span>{seconds > 0 ? `Gathering to attack · ${seconds}s` : "Attacking"}</span>
+              <span>Attacking</span>
             </li>
           );
         })}
@@ -381,18 +371,10 @@ function App() {
                       <span>Fight for {faction.name}</span>
                     </button>
                   ))}
-                  {isGathering && <p>Your faction is gathering.</p>}
-                  {canAttack && confirmingAttack && (
-                    <>
-                      <p>Declare an attack on {selectedProvince.name}?</p>
-                      <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Confirm attack</button>
-                      <button type="button" className="secondary-button" disabled={isSubmitting} onClick={() => setConfirmingAttack(false)}>Cancel</button>
-                    </>
+                  {canAttack && (
+                    <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Declare attack</button>
                   )}
-                  {canAttack && !confirmingAttack && (
-                    <button type="button" disabled={isSubmitting} onClick={() => setConfirmingAttack(true)}>Declare attack</button>
-                  )}
-                  {activity && !canEnter && !isGathering && !canAttack && visitingSides.length === 0 && (
+                  {activity && !canEnter && !canAttack && visitingSides.length === 0 && (
                     <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
                   )}
                 </div>
