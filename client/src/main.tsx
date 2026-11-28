@@ -101,7 +101,6 @@ function App() {
 
   const territory = worldMap.territories.find(({ id }) => id === territoryId);
   const ownAction = territory && getOwnBattleAction(territory);
-  const canEnter = ownAction === "join";
   const canAttack = ownAction === "attack";
   const creationFlag = factionFlag().map((color, index) => paintedCells[index] ?? color);
 
@@ -264,31 +263,20 @@ function App() {
   }));
   const selectedProvince = territories.find(({ id }) => id === territoryId);
 
-  const visitingSides = selectedProvince?.challenges.length
-    ? [
-        selectedProvince.owner,
-        ...selectedProvince.challenges
-          .map(({ challengerFactionId }) => factionsById.get(challengerFactionId)),
-      ].filter((faction): faction is Faction => Boolean(faction && faction.id !== founded?.id))
-    : [];
+  const attackers = (selectedProvince?.challenges ?? []).flatMap(({ challengerFactionId }) => {
+    const faction = factionsById.get(challengerFactionId);
+    return faction ? [faction] : [];
+  });
+  const contested = Boolean(selectedProvince?.challenges.length);
+  const canJoinDefender = contested || ownAction === "join";
 
-  function renderChallenges(challenges: TerritoryActivity["challenges"]) {
-    if (challenges.length === 0) return null;
+  function renderSide(faction: Faction, canJoin: boolean) {
     return (
-      <ul className="province-challenges">
-        {challenges.map(({ challengerFactionId }) => {
-          const faction = factionsById.get(challengerFactionId);
-          return (
-            <li key={challengerFactionId}>
-              <span className="faction-display">
-                {faction && <FactionFlag faction={faction} />}
-                {faction?.name ?? "Attacking faction"}
-              </span>
-              <span>Attacking</span>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="province-side">
+        <span className="faction-display"><FactionFlag faction={faction} />{faction.name}</span>
+        {canJoin && <button type="button" aria-label={`Join ${faction.name}`} disabled={isSubmitting}
+          onClick={() => void actOnTerritory(faction)}>Join</button>}
+      </div>
     );
   }
 
@@ -363,29 +351,22 @@ function App() {
                 </button>
               </div>
               <div className="overlay-content">
-                {selectedProvince.owner ? (
-                  <p className="faction-display">
-                    <FactionFlag faction={selectedProvince.owner} />
-                    <span>Owned by {selectedProvince.owner.name}</span>
-                  </p>
-                ) : <p>Unclaimed</p>}
-                <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
-                {renderChallenges(selectedProvince.challenges)}
+                <p>{contested ? "Contested" : "No active contest"}</p>
+                <h3 className="province-side-heading">Defender</h3>
+                {selectedProvince.owner ? renderSide(selectedProvince.owner, canJoinDefender) : <p>Unclaimed</p>}
+                {contested && (
+                  <>
+                    <h3 className="province-side-heading">Attackers</h3>
+                    <ul className="province-challenges">
+                      {attackers.map(faction => <li key={faction.id}>{renderSide(faction, true)}</li>)}
+                    </ul>
+                  </>
+                )}
                 <div className="province-actions">
-                  {canEnter && founded && (
-                    <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(founded)}>Enter arena</button>
-                  )}
-                  {visitingSides.map((faction) => (
-                    <button className="faction-display" key={faction.id} type="button" disabled={isSubmitting}
-                      onClick={() => void actOnTerritory(faction)}>
-                      <FactionFlag faction={faction} />
-                      <span>Fight for {faction.name}</span>
-                    </button>
-                  ))}
                   {canAttack && (
                     <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory("attack")}>Declare attack</button>
                   )}
-                  {activity && !canEnter && !canAttack && visitingSides.length === 0 && (
+                  {activity && !contested && !canJoinDefender && !canAttack && (
                     <p>{founded ? "Your faction can only attack neighboring provinces." : "Found a faction to declare an attack."}</p>
                   )}
                 </div>
