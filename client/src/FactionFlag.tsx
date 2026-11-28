@@ -1,6 +1,6 @@
 import { factionFlag, flagSize, type Faction } from "../../shared/src/factions";
 
-export function FactionFlag({ faction }: { faction: Pick<Faction, "name" | "color" | "flag"> }) {
+export function FactionFlag({ faction }: { faction: Pick<Faction, "name" | "flag"> }) {
   return (
     <svg className="faction-flag" viewBox={`0 0 ${flagSize} ${flagSize}`} role="img"
       aria-label={`${faction.name} flag`} shapeRendering="crispEdges">

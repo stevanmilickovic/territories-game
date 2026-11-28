@@ -91,13 +91,12 @@ header p { color: #b7c7b9; }
 
 .world-identity h1 { font-size: clamp(1rem, 3.5vw, 1.5rem); }
 .world-identity p { font-size: 0.8rem; margin-top: 0.2rem; }
-.world-overlay summary {
-  min-height: 2.75rem;
+.faction-heading {
+  margin: 0;
   padding: 0.65rem 0.75rem;
-  cursor: pointer;
-  font-weight: bold;
+  border-bottom: 1px solid #53655b;
+  font-size: 1.15rem;
 }
-.world-overlay[open] summary { border-bottom: 1px solid #53655b; }
 .overlay-content {
   padding: 0.75rem;
   overflow-wrap: anywhere;
@@ -166,6 +165,24 @@ header p { color: #b7c7b9; }
   stroke-width: 0.45;
   stroke-linejoin: round;
   pointer-events: none;
+}
+
+.contested-glow {
+  fill: none;
+  stroke: #ff332b;
+  stroke-width: 3.4;
+  stroke-linejoin: round;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .contested-glow { animation: contested-glow 3.6s ease-in-out infinite; }
+}
+
+@keyframes contested-glow {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.95; }
 }
 
 .map-border-halo {
@@ -239,7 +256,7 @@ button:disabled { opacity: 0.65; }
 .province-actions .faction-display { justify-content: center; }
 .faction-color { display: flex; align-items: center; gap: 0.4rem; }
 .flag-editor { display: grid; gap: 0.5rem; }
-.flag-editor-grid { display: grid; max-width: 15rem; gap: 1px; background: #617d75; padding: 1px; }
+.flag-editor-grid { display: grid; max-width: 15rem; gap: 1px; background: #617d75; padding: 1px; touch-action: none; }
 .flag-editor-grid button { min-height: 0; padding: 0; border: 0; border-radius: 0; aspect-ratio: 1; }
 .flag-editor-grid button:focus-visible { outline: 2px solid #172627; box-shadow: inset 0 0 0 3px #fff; z-index: 1; }
 .swatch { width: 1rem; height: 1rem; flex: 0 0 auto; border: 1px solid #a0ae9a; }

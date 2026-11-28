@@ -29,7 +29,6 @@ function App() {
   const [room, setRoom] = useState<Room | null>(null);
   const [factions, setFactions] = useState<Faction[]>([]);
   const [founded, setFounded] = useState<Faction | null>(null);
-  const [factionColor, setFactionColor] = useState(defaultFactionColor);
   const [paintedCells, setPaintedCells] = useState<Partial<Record<number, string>>>({});
   const [editedFlag, setEditedFlag] = useState<FlagColors | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,7 +70,6 @@ function App() {
           setArena(null);
           setFactions([]);
           setFounded(null);
-          setFactionColor(defaultFactionColor);
           setPaintedCells({});
           setEditedFlag(null);
           setActivity(null);
@@ -121,7 +119,7 @@ function App() {
   const canAttack = Boolean(founded && territory && activity && !ownChallenge && canAttackTerritory(
     founded.id, territory, new Map(Object.entries(activity.owners)),
   ));
-  const creationFlag = factionFlag({ color: factionColor }).map((color, index) => paintedCells[index] ?? color);
+  const creationFlag = factionFlag().map((color, index) => paintedCells[index] ?? color);
 
   function selectProvince(id: string) {
     if (isSubmitting) return;
@@ -328,18 +326,19 @@ function App() {
               <clipPath id="province-land-clip">
                 {territories.map(({ id, path }) => <path key={id} d={path} clipRule="evenodd" />)}
               </clipPath>
-              <pattern id="contested-province" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <path d="M0 0V4" stroke="#ba402a" strokeWidth="1.4" opacity="0.8" />
-              </pattern>
+              <filter id="contested-province-blur" filterUnits="userSpaceOnUse"
+                x={-6} y={-6} width={worldMap.width + 12} height={worldMap.height + 12}>
+                <feGaussianBlur stdDeviation="1.15" />
+              </filter>
             </defs>
             <g className="map-relief" clipPath="url(#province-land-clip)" aria-hidden="true">
               {worldMap.reliefPaths.map((path, index) => (
                 <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
               ))}
             </g>
-            <g pointerEvents="none" aria-hidden="true">
+            <g className="contested-glow" aria-hidden="true">
               {territories.filter(({ challenges }) => challenges.length > 0).map(({ id, path }) => (
-                <path key={id} d={path} fillRule="evenodd" fill="url(#contested-province)" />
+                <path key={id} d={path} filter="url(#contested-province-blur)" />
               ))}
             </g>
             <g className="map-borders" aria-hidden="true">
@@ -403,8 +402,8 @@ function App() {
           )}
         </div>
         <div className="world-side world-side-right">
-          <details className="world-overlay" name="world-controls">
-            <summary>Faction</summary>
+          <section className="world-overlay" aria-labelledby="faction-heading">
+            <h2 id="faction-heading" className="faction-heading">Faction</h2>
             <div className="overlay-content">
               {founded ? (
                 <div className="faction-profile">
@@ -436,7 +435,7 @@ function App() {
                     </label>
                     <label>
                       Faction color
-                      <input name="color" type="color" value={factionColor} onChange={event => setFactionColor(event.target.value)} />
+                      <input name="color" type="color" defaultValue={defaultFactionColor} />
                     </label>
                     <FlagEditor flag={creationFlag} onPaint={(index, color) =>
                       setPaintedCells(cells => ({ ...cells, [index]: color }))} />
@@ -446,7 +445,7 @@ function App() {
               )}
               {error && <p role="alert">{error}</p>}
             </div>
-          </details>
+          </section>
         </div>
       </section>
     </main>
