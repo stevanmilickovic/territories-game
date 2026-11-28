@@ -40,7 +40,6 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .world {
   --map-size: min(100vw, calc(100dvh - 1rem));
-  --corner-inset: clamp(0.5rem, 2vw, 1rem);
   display: grid;
   grid-template-columns: minmax(0, var(--map-size));
   grid-template-areas: "map" "left" "right";
@@ -50,7 +49,6 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .world-map-stage {
   grid-area: map;
-  position: relative;
   min-width: 0;
   aspect-ratio: 1;
 }
@@ -64,8 +62,6 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .world-side-left { grid-area: left; }
 .world-side-right { grid-area: right; }
-.world-side .world-overlay { position: static; }
-.world-side .world-overlay[open] { width: auto; }
 
 @media (min-width: 68rem) {
   .world {
@@ -95,8 +91,6 @@ header p, .faction-list > p { color: #b7c7b9; }
 
 .world-identity h1 { font-size: clamp(1rem, 3.5vw, 1.5rem); }
 .world-identity p { font-size: 0.8rem; margin-top: 0.2rem; }
-.world-overlay { z-index: 1; }
-.world-overlay[open] { width: min(19rem, calc(100% - 2 * var(--corner-inset))); }
 .world-overlay summary {
   min-height: 2.75rem;
   padding: 0.65rem 0.75rem;
@@ -104,16 +98,11 @@ header p, .faction-list > p { color: #b7c7b9; }
   font-weight: bold;
 }
 .world-overlay[open] summary { border-bottom: 1px solid #53655b; }
-.world-activity { position: absolute; left: var(--corner-inset); bottom: var(--corner-inset); }
 .overlay-content {
-  max-height: calc(var(--map-size) - 2 * var(--corner-inset) - 3rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 0.75rem;
   overflow-wrap: anywhere;
 }
-.overlay-content > p:first-child, .overlay-content > .territory-activity { margin-top: 0; }
-.overlay-content > .territory-activity { margin-bottom: 0; }
+.overlay-content > p:first-child { margin-top: 0; }
 .overlay-content > p + form { margin-top: 0.75rem; }
 
 .map {
@@ -240,8 +229,4 @@ button:disabled { opacity: 0.65; }
 .faction-list { margin-top: 1.5rem; border-top: 1px solid #53655b; padding-top: 0.65rem; }
 .faction-list ul { margin: 0; padding: 0; list-style: none; }
 .faction-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; overflow-wrap: anywhere; }
-.territory-activity, .territory-activity ul { padding: 0; list-style: none; }
-.territory-activity > li { border-top: 1px solid #53655b; padding: 0.55rem 0; }
-.territory-activity > li > span { margin-inline-start: 0.6rem; color: #b7c7b9; }
-.territory-activity ul li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem 0.75rem; padding-top: 0.4rem; overflow-wrap: anywhere; }
 .swatch { width: 1rem; height: 1rem; flex: 0 0 auto; border: 1px solid #a0ae9a; }

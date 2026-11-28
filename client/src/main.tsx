@@ -272,7 +272,7 @@ function App() {
             role="group"
             aria-label="Select a province"
           >
-            {territories.map(({ id, name, path, owner }) => (
+            {territories.map(({ id, name, path, owner, challenges }) => (
               <path
                 key={id}
                 id={id}
@@ -282,7 +282,7 @@ function App() {
                 style={{ fill: owner?.color }}
                 role="button"
                 tabIndex={0}
-                aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}`}
+                aria-label={`${name}, ${owner ? `owned by ${owner.name}` : "unclaimed"}${challenges.length ? ", contested" : ""}`}
                 aria-pressed={id === territoryId}
                 onClick={() => selectProvince(id)}
                 onKeyDown={(event) => {
@@ -296,10 +296,18 @@ function App() {
               <clipPath id="province-land-clip">
                 {territories.map(({ id, path }) => <path key={id} d={path} clipRule="evenodd" />)}
               </clipPath>
+              <pattern id="contested-province" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <path d="M0 0V4" stroke="#ba402a" strokeWidth="1.4" opacity="0.8" />
+              </pattern>
             </defs>
             <g className="map-relief" clipPath="url(#province-land-clip)" aria-hidden="true">
               {worldMap.reliefPaths.map((path, index) => (
                 <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
+              ))}
+            </g>
+            <g pointerEvents="none" aria-hidden="true">
+              {territories.filter(({ challenges }) => challenges.length > 0).map(({ id, path }) => (
+                <path key={id} d={path} fillRule="evenodd" fill="url(#contested-province)" />
               ))}
             </g>
             <g className="map-borders" aria-hidden="true">
@@ -308,20 +316,6 @@ function App() {
             </g>
             <MapLabels labels={provinceLabels} />
           </svg>
-          <details className="world-overlay world-activity" name="world-controls">
-            <summary>Territories</summary>
-            <div className="overlay-content">
-              <ul className="territory-activity" aria-label="Territory activity">
-                {territories.map(({ id, name, owner, challenges }) => (
-                  <li key={id}>
-                    <strong>{name}</strong>
-                    <span>{owner ? `Owned by ${owner.name}` : "Unclaimed"}</span>
-                    {renderChallenges(challenges)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </details>
         </div>
         <div className="world-side world-side-left">
           <header className="world-identity">
