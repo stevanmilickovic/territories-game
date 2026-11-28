@@ -9,6 +9,6 @@ export function factionFlag(faction: Pick<Faction, "color" | "flag">): FactionFl
   return faction.flag ?? Array<string>(flagCellCount).fill(faction.color);
 }
 
-export type CreateFactionResult =
+export type FactionResult =
   | { ok: true; faction: Faction }
   | { ok: false; error: string };

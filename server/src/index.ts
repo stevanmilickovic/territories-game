@@ -6,7 +6,7 @@ import type {
   TerritoryActivity,
   TerritoryChallenge,
 } from "../../shared/src/challenges.ts";
-import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
+import { flagCellCount, type Faction, type FactionFlag, type FactionResult } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map.ts";
 import { canAttackTerritory } from "../../shared/src/attack-eligibility.ts";
 import { TerritoryArena } from "./territory-arena.ts";
@@ -14,6 +14,18 @@ import { TerritoryArena } from "./territory-arena.ts";
 type WorldClient = Client<{ auth: { displayName: string } }>;
 type ArenaReservation = Awaited<ReturnType<typeof matchMaker.reserveSeatFor>>;
 const gatheringWindowMs = 0; // Skip the gathering delay during local playtesting.
+const hexColor = /^#[0-9a-f]{6}$/i;
+const invalidFlag = "Use 36 six-digit hex colors for the flag.";
+
+function readFlag(value: unknown): FactionFlag | undefined {
+  if (!Array.isArray(value) || value.length !== flagCellCount) return;
+  const flag: string[] = [];
+  for (const cell of value) {
+    if (typeof cell !== "string" || cell.length !== 7 || !hexColor.test(cell)) return;
+    flag.push(cell.toLowerCase());
+  }
+  return flag;
+}
 
 class WorldRoom extends Room {
   autoDispose = false;
@@ -104,7 +116,7 @@ class WorldRoom extends Room {
       return { ok: true, reservation };
     },
 
-    createFaction: (client: WorldClient, payload: unknown): CreateFactionResult => {
+    createFaction: (client: WorldClient, payload: unknown): FactionResult => {
       if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
         return { ok: false, error: "Provide a faction name and color." };
       }
@@ -115,7 +127,7 @@ class WorldRoom extends Room {
       }
 
       const color = "color" in payload ? payload.color : undefined;
-      if (typeof color !== "string" || color.length !== 7 || !/^#[0-9a-f]{6}$/i.test(color)) {
+      if (typeof color !== "string" || color.length !== 7 || !hexColor.test(color)) {
         return { ok: false, error: "Use a six-digit hex color such as #369b72." };
       }
 
@@ -123,12 +135,28 @@ class WorldRoom extends Room {
         return { ok: false, error: "You already founded a faction in this session." };
       }
 
-      const faction = { id: randomUUID(), name, color: color.toLowerCase() };
-      this.factionsByFounder.set(client.sessionId, faction);
-      this.broadcast("factions", [...this.factionsByFounder.values()]);
-      return { ok: true, faction };
+      const flag = "flag" in payload ? readFlag(payload.flag) : undefined;
+      if ("flag" in payload && !flag) return { ok: false, error: invalidFlag };
+      return this.saveFaction(client.sessionId, { id: randomUUID(), name, color: color.toLowerCase(), ...(flag ? { flag } : {}) });
+    },
+
+    updateFactionFlag: (client: WorldClient, payload: unknown): FactionResult => {
+      const faction = this.factionsByFounder.get(client.sessionId);
+      if (!faction || typeof payload !== "object" || payload === null || Array.isArray(payload)
+        || !("factionId" in payload) || payload.factionId !== faction.id) {
+        return { ok: false, error: "You can only edit your own faction flag." };
+      }
+      const flag = "flag" in payload ? readFlag(payload.flag) : undefined;
+      if (!flag) return { ok: false, error: invalidFlag };
+      return this.saveFaction(client.sessionId, { ...faction, flag });
     },
   };
+
+  private saveFaction(founderId: string, faction: Faction): FactionResult {
+    this.factionsByFounder.set(founderId, faction);
+    this.broadcast("factions", [...this.factionsByFounder.values()]);
+    return { ok: true, faction };
+  }
 
   private getArenaEntryError(territoryId: string, guestSessionId: string, factionId: string) {
     const challenges = this.challengesByTerritory.get(territoryId);

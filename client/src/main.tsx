@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { ArenaState } from "../../shared/src/arena-schema";
 import { canAttackTerritory } from "../../shared/src/attack-eligibility";
 import type { ArenaEntryResult, StartChallengeResult, TerritoryActivity } from "../../shared/src/challenges.ts";
-import type { CreateFactionResult, Faction } from "../../shared/src/factions.ts";
+import type { FactionResult, Faction } from "../../shared/src/factions.ts";
 import { worldMap } from "../../shared/src/world-map";
 import { MapLabels } from "./MapLabels";
 import "./world.css";
@@ -140,7 +140,7 @@ function App() {
     setIsSubmitting(true);
     setError("");
     try {
-      const result: CreateFactionResult = await room.request("createFaction", {
+      const result: FactionResult = await room.request("createFaction", {
         name: form.get("name"),
         color: form.get("color"),
       });
