@@ -7,6 +7,7 @@ import { assignTerrainTerritories } from "../shared/src/terrain-territories.ts";
 import { traceBorderPaths, type Point } from "./trace-world-map-borders.mts";
 import { simplifyBorder } from "./simplify-world-map-border.mts";
 import { roundedBorderPath } from "./round-world-map-border.mts";
+import { stitchProvinceOutlines } from "./stitch-province-outlines.mts";
 
 type Edge = { to: number; direction: number };
 
@@ -171,19 +172,13 @@ for (const boundary of boundaries) {
   neighborsByLabel[left].add(right);
 }
 
-const borderPaths = boundaries.map(({ kind, labels, points }) => {
-  const [startX, startY] = points[0];
-  const [endX, endY] = points[points.length - 1];
-  const closed = startX === endX && startY === endY;
-  const path = closed ? svgLine(points.slice(0, -1)) + "Z" : svgLine(points);
-  return {
-    kind,
-    territoryIds: labels.map(idFor),
-    path,
-    // The map still draws the grid paths alongside its grid-based province fills.
-    curvedPath: kind === "map-edge" ? path : roundedBorderPath(simplifyBorder(points, width, height), width, height),
-  };
-});
+const curvedBoundaries = boundaries.map((boundary) => ({
+  ...boundary,
+  path: roundedBorderPath(boundary.kind === "map-edge" ? boundary.points
+    : simplifyBorder(boundary.points, width, height), width, height),
+}));
+const outlines = stitchProvinceOutlines(curvedBoundaries);
+const borderPaths = curvedBoundaries.map(({ kind, labels, path }) => ({ kind, territoryIds: labels.map(idFor), path }));
 
 const visited = new Set<number>();
 const territories = centers.map(({ x, y }, index) => {
@@ -203,13 +198,15 @@ const territories = centers.map(({ x, y }, index) => {
 
   const rings = traceRings(labels, label);
   validateOutline(rings, label);
+  const path = outlines.get(label);
+  assert.ok(path, `Province ${label} needs an outline.`);
   return {
     id: idFor(label),
     name: `Province ${label}`,
     seed: [x + 0.5, y + 0.5],
     labelAnchor: labelAnchor(queue, label, [x, y]),
     neighborIds: [...neighborsByLabel[label]].sort((a, b) => a - b).map(idFor),
-    path: svgPath(rings),
+    path,
     ownerFactionId: null,
   };
 });

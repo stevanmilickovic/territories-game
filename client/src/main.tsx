@@ -286,7 +286,12 @@ function App() {
               }}
             />
           ))}
-          <g className="map-relief" aria-hidden="true">
+          <defs>
+            <clipPath id="province-land-clip">
+              {territories.map(({ id, path }) => <path key={id} d={path} clipRule="evenodd" />)}
+            </clipPath>
+          </defs>
+          <g className="map-relief" clipPath="url(#province-land-clip)" aria-hidden="true">
             {worldMap.reliefPaths.map((path, index) => (
               <path key={index} d={path} fillRule="evenodd" opacity={index * 0.095} />
             ))}
