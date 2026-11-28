@@ -9,6 +9,7 @@ import { worldMap } from "../../shared/src/world-map";
 import { MapLabels } from "./MapLabels";
 import { FactionFlag } from "./FactionFlag";
 import { FlagEditor } from "./FlagEditor";
+import { ArenaMinimap } from "./ArenaMinimap";
 import "./world.css";
 
 const client = new Client(import.meta.env.VITE_GAME_SERVER_URL ?? "http://127.0.0.1:2567");
@@ -251,6 +252,9 @@ function App() {
             </header>
             <button type="button" onClick={() => setArena(null)}>Return to world map</button>
             <p className="arena-controls">Move with WASD. Hold left click to fire. Drag your weapon out to drop it. Click a nearby weapon to pick it up.</p>
+          </div>
+          <div className="world-side world-side-right">
+            <ArenaMinimap key={arena.room.sessionId} room={arena.room} provinceId={arena.province.id} />
           </div>
         </section>
       </main>

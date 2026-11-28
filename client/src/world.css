@@ -216,6 +216,18 @@ header p { color: #b7c7b9; }
 
 .arena-canvas canvas { display: block; }
 
+.arena-minimap {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+  background: #163f49;
+  border: 1px solid #617d75;
+}
+
+.arena-minimap path { fill: #acb58a; }
+.arena-minimap circle { fill: #f34335; stroke: #172c24; stroke-width: 1; vector-effect: non-scaling-stroke; }
+
 fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
 label { display: grid; gap: 0.35rem; }
 input, select, button {
