@@ -308,10 +308,6 @@ function App() {
             </g>
             <MapLabels labels={provinceLabels} />
           </svg>
-          <header className="world-identity">
-            <h1>Territories Game</h1>
-            <p role="status">Connected to the world as {displayName}.</p>
-          </header>
           <details className="world-overlay world-activity" name="world-controls">
             <summary>Territories</summary>
             <div className="overlay-content">
@@ -326,6 +322,12 @@ function App() {
               </ul>
             </div>
           </details>
+        </div>
+        <div className="world-side world-side-left">
+          <header className="world-identity">
+            <h1>Territories Game</h1>
+            <p role="status">Connected to the world as {displayName}.</p>
+          </header>
           {selectedProvince && (
             <section className="world-overlay province-panel" aria-labelledby="province-heading">
               <div className="province-heading">
