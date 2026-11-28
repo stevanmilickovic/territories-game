@@ -282,7 +282,10 @@ function App() {
           const seconds = Math.ceil((readyAt - serverNow) / 1000);
           return (
             <li key={challengerFactionId}>
-              <span>{faction?.name ?? "Attacking faction"}</span>
+              <span className="faction-display">
+                {faction && <FactionFlag faction={faction} />}
+                {faction?.name ?? "Attacking faction"}
+              </span>
               <span>{seconds > 0 ? `Gathering to attack · ${seconds}s` : "Attacking"}</span>
             </li>
           );
@@ -360,7 +363,12 @@ function App() {
                 </button>
               </div>
               <div className="overlay-content">
-                <p>{selectedProvince.owner ? `Owned by ${selectedProvince.owner.name}` : "Unclaimed"}</p>
+                {selectedProvince.owner ? (
+                  <p className="faction-display">
+                    <FactionFlag faction={selectedProvince.owner} />
+                    <span>Owned by {selectedProvince.owner.name}</span>
+                  </p>
+                ) : <p>Unclaimed</p>}
                 <p>{selectedProvince.challenges.length > 0 ? "Contested" : "No active contest"}</p>
                 {renderChallenges(selectedProvince.challenges)}
                 <div className="province-actions">
@@ -368,8 +376,10 @@ function App() {
                     <button type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(founded)}>Enter arena</button>
                   )}
                   {visitingSides.map((faction) => (
-                    <button key={faction.id} type="button" disabled={isSubmitting} onClick={() => void actOnTerritory(faction)}>
-                      Fight for {faction.name}
+                    <button className="faction-display" key={faction.id} type="button" disabled={isSubmitting}
+                      onClick={() => void actOnTerritory(faction)}>
+                      <FactionFlag faction={faction} />
+                      <span>Fight for {faction.name}</span>
                     </button>
                   ))}
                   {isGathering && <p>Your faction is gathering.</p>}
